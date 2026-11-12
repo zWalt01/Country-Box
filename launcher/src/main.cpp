@@ -53,7 +53,7 @@ static void usage() {
             "usage: country-box-launcher [--home DIR] [--size WxH | --fullscreen] [--shot-dir DIR --auto STEPS]\n"
             "       country-box-launcher [--home DIR] --status | --verify GAME FOLDER [--quick] | --add GAME FOLDER |\n"
             "                            --set-build GAME DIR | --prepare GAME [--shaders] | --import-build GAME PATH |\n"
-            "                            --play GAME | --check-update | --update\n"
+            "                            --play GAME | --check-update | --update | --setup GAME=FOLDER...\n"
             "games: dkcrhd (Returns HD), dkctf (Tropical Freeze)\n"
             "update channel: CB_UPDATE_API or <home>/update.ini api_url (default: this project's GitHub Releases)\n");
 }
@@ -244,6 +244,71 @@ static int run_hub(Library &lib, int w, int h, bool fullscreen, const std::strin
     return 0;
 }
 
+// --setup GAME=FOLDER...: check each copy, keep it in the library and prepare it, without a window. For launchers
+// such as RecompLauncher (recomplauncher.json, "prepare"). GAME= with no folder is skipped (a game the player does
+// not have). stdout carries only "progress <0..1> <text>" lines, the
+// errors go to stderr. Exit 0 ready; 2 usage; 4 a copy was refused (wrong game, version or files); 1 Prepare failed.
+// The same steps as the hub's Add and Prepare, with the hub's stage weights for the overall fraction.
+static int run_setup(Library &lib, const std::vector<std::string> &args) {
+    std::vector<std::pair<Game *, std::string>> todo;
+    for (auto &a : args) {
+        size_t eq = a.find('=');
+        Game *g = eq == std::string::npos ? nullptr : lib.find(a.substr(0, eq));
+        // a game the player did not give: an empty folder, or a launcher placeholder left as written ({input:...})
+        if (g && (eq + 1 >= a.size() || a.compare(eq + 1, 7, "{input:") == 0)) continue;
+        if (!g) {
+            fprintf(stderr, "launcher: --setup takes GAME=FOLDER, not '%s'\n", a.c_str());
+            return usage(), 2;
+        }
+        todo.push_back({g, a.substr(eq + 1)});
+    }
+    if (todo.empty()) return fprintf(stderr, "launcher: --setup got no game folder\n"), usage(), 2;
+    const double n = (double)todo.size();
+    auto say = [](double f, const std::string &text) {
+        printf("progress %.3f %s\n", std::min(1.0, std::max(0.0, f)), text.c_str());
+        fflush(stdout);
+    };
+    for (size_t i = 0; i < todo.size(); i++) {
+        Game *g = todo[i].first;
+        std::string name = g->manifest ? g->manifest->name : g->id;
+        say(i / n, "Checking your copy of " + name);
+        VerifyResult r = verify_copy(g->id, todo[i].second, true);
+        if (r.kind != VerifyResult::Ok) {
+            fprintf(stderr, "launcher: %s: %s %s %s\n", name.c_str(), r.headline.c_str(), r.explain.c_str(), r.hint.c_str());
+            return 4;
+        }
+        lib.set_copy(*g, r);
+        std::string err;
+        if (!lib.save(&err)) return fprintf(stderr, "launcher: %s\n", err.c_str()), 1;
+        const PrepProfile *prof = prep_profile(g->id);
+        double lift_w = prof ? prof->lift_s : 100, comp_w = prof ? prof->compile_s : 500;
+        double w[] = {2, lift_w, comp_w, std::max(lift_w, comp_w) * 0.15}, total = w[0] + w[1] + w[2] + w[3];
+        const char *what[] = {"checking the tools", "turning its code into C", "compiling", "preparing the shaders"};
+        PrepareJob job(lib.home(), *g, PrepareJob::Full);
+        std::string last;
+        while (!job.done()) {
+            int st = job.stage.load(), d = job.stage_done.load(), t = job.stage_total.load();
+            if (st >= PrepareJob::Preflight && st <= PrepareJob::Shaders) {
+                double done = 0;
+                for (int k = 0; k < st - PrepareJob::Preflight; k++) done += w[k];
+                done += w[st - PrepareJob::Preflight] * (t > 0 && d >= 0 ? std::min(1.0, (double)d / t) : 0);
+                std::string text = name + ": " + what[st - PrepareJob::Preflight];
+                if (t > 0 && d >= 0) text += " " + std::to_string(d) + "/" + std::to_string(t);
+                if (text != last) say((i + done / total) / n, text), last = text;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        }
+        const PrepareJob::Outcome &out = job.outcome();
+        if (!out.ok) {
+            fprintf(stderr, "launcher: %s: %s %s %s (log: %s)\n", name.c_str(), out.headline.c_str(), out.explain.c_str(),
+                    out.hint.c_str(), out.log.c_str());
+            return 1;
+        }
+    }
+    say(1, "Ready to play");
+    return 0;
+}
+
 int main(int argc, char **argv) {
     std::string home, shot_dir = ".", auto_steps, action;
     std::vector<std::string> args;
@@ -263,7 +328,7 @@ int main(int argc, char **argv) {
         else if (a == "--quick") quick = true;
         else if (a == "--shaders") shaders_only = true;
         else if (a == "--status" || a == "--verify" || a == "--add" || a == "--set-build" || a == "--play" ||
-                 a == "--prepare" || a == "--import-build" || a == "--check-update" || a == "--update")
+                 a == "--prepare" || a == "--import-build" || a == "--check-update" || a == "--update" || a == "--setup")
             action = a;
         else if (a == "--help" || a == "-h") return usage(), 0;
         else if (a[0] == '-') return usage(), 2;
@@ -293,6 +358,7 @@ int main(int argc, char **argv) {
                     job.to_version.c_str(), job.installed_dir.c_str(), job.from_version.c_str());
         return job.ok ? 0 : 1;
     }
+    if (action == "--setup") return run_setup(lib, args);
     Game *g = args.empty() ? nullptr : lib.find(args[0]);
     if (action != "--status" && !g) {
         fprintf(stderr, "launcher: unknown game '%s'\n", args.empty() ? "" : args[0].c_str());

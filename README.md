@@ -8,6 +8,8 @@ built on your machine from your own copy.**
 [Español](docs/README.es.md) · [Install guide](docs/INSTALL.md) · [Install with an AI agent](AGENT-INSTALL.md) ·
 [Known issues](docs/KNOWN-ISSUES.md) · [About](ABOUT.md) · [Changelog](CHANGELOG.md)
 
+<a href="https://recomplauncher.com"><picture><source media="(prefers-color-scheme: dark)" srcset="https://recomplauncher.com/assets/press/launcher/badge-light.svg"><img alt="Get it on RecompLauncher" src="https://recomplauncher.com/assets/press/launcher/badge-dark.svg" height="48"></picture></a>
+
 ![The Country-Box launcher](docs/images/launcher.webp)
 
 *The launcher — its art is our own, drawn in code. Out of respect for the games' owners, this repository shows no
@@ -50,7 +52,7 @@ Other regions usually ship the same files on Switch; the launcher checks your co
 Updates install themselves and rebuild only what changed. Using an AI agent? Give it
 [AGENT-INSTALL.md](AGENT-INSTALL.md). Full details: [docs/INSTALL.md](docs/INSTALL.md).
 
-## Status — version 1.0.1
+## Status — version 1.0.2
 
 | | Returns HD | Tropical Freeze |
 |---|---|---|

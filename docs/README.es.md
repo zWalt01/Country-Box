@@ -8,6 +8,8 @@ compilados en tu computadora a partir de tu propia copia.**
 [English](../README.md) · [Guía de instalación](INSTALL.md) · [Instalar con un agente de IA](../AGENT-INSTALL.md) ·
 [Problemas conocidos](KNOWN-ISSUES.md) · [Sobre el proyecto](ABOUT.es.md) · [Cambios](../CHANGELOG.md)
 
+<a href="https://recomplauncher.com"><picture><source media="(prefers-color-scheme: dark)" srcset="https://recomplauncher.com/assets/press/launcher/badge-light.svg"><img alt="Get it on RecompLauncher" src="https://recomplauncher.com/assets/press/launcher/badge-dark.svg" height="48"></picture></a>
+
 ![El launcher de Country-Box](images/launcher.webp)
 
 *El launcher: su arte es propio, dibujado en código. Por respeto a los dueños de los juegos, este repositorio no
@@ -52,7 +54,7 @@ En Switch, las otras regiones suelen traer los mismos archivos; el launcher revi
 Las actualizaciones se instalan solas y sólo recompilan lo que cambió. ¿Usas un agente de IA? Dale
 [AGENT-INSTALL.md](../AGENT-INSTALL.md). Todos los detalles: [INSTALL.md](INSTALL.md).
 
-## Estado — versión 1.0.1
+## Estado — versión 1.0.2
 
 | | Returns HD | Tropical Freeze |
 |---|---|---|

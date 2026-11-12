@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Country-Box
+Comment=Native Linux ports of Donkey Kong Country Returns HD and Tropical Freeze, built from your own copy
+Exec=country-box-launcher
+Icon=country-box
+Categories=Game;
+Terminal=false

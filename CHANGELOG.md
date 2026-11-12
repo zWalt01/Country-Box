@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.2 — 2026-11-12
+
+- RecompLauncher support: the AppImage carries `recomplauncher.json`, so [RecompLauncher](https://recomplauncher.com)
+  can set Country-Box up from your copy, build it, show its main settings and start each game.
+- New for launchers and scripts: `country-box-launcher --setup dkcrhd=FOLDER dkctf=FOLDER` checks each copy and
+  prepares it without a window, printing `progress` lines. Nothing changes if you don't use it.
+- The release file is now named `Country-Box-1.0.2-linux-x86_64.AppImage`. Updating from 1.0.1 works as before.
+
 ## 1.0.1 — 2026-11-12
 
 - The launcher now updates itself when it runs as an AppImage: it downloads the new AppImage from the release,
