@@ -5,8 +5,8 @@
 **Native Linux and Steam Deck ports of *Donkey Kong Country Returns HD* and *Donkey Kong Country: Tropical Freeze*,
 built on your machine from your own copy.**
 
-[Español](docs/README.es.md) · [Install guide](docs/INSTALL.md) · [Known issues](docs/KNOWN-ISSUES.md) ·
-[About](ABOUT.md) · [Changelog](CHANGELOG.md)
+[Español](docs/README.es.md) · [Install guide](docs/INSTALL.md) · [Install with an AI agent](AGENT-INSTALL.md) ·
+[Known issues](docs/KNOWN-ISSUES.md) · [About](ABOUT.md) · [Changelog](CHANGELOG.md)
 
 ![The Country-Box launcher](docs/images/launcher.webp)
 
