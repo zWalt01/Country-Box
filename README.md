@@ -5,7 +5,7 @@
 **Native Linux and Steam Deck ports of *Donkey Kong Country Returns HD* and *Donkey Kong Country: Tropical Freeze*,
 built on your machine from your own copy.**
 
-[Español](docs/README.es.md) · [About](ABOUT.md) · [Install](docs/INSTALL.md) · [Install with an AI agent](AGENT-INSTALL.md) ·
+[Español](docs/README.es.md) · [About](ABOUT.md) · [Requirements](#requirements) · [Install](docs/INSTALL.md) · [Install with an AI agent](AGENT-INSTALL.md) ·
 [How it was tested](docs/TESTING.md) · [Known issues](docs/KNOWN-ISSUES.md) · [Changelog](CHANGELOG.md)
 
 ![The Country-Box launcher](docs/images/launcher.webp)
@@ -39,6 +39,30 @@ All figures are measured (2026-11-11/12) and listed with their source in [docs/T
 "hitch" is a frame that stays on screen longer than two refreshes. Returns HD
 was walked end to end by the game's own **Super Guide**, level by level, not by hand.
 
+## Requirements
+
+**Your own copy of the game** — the Nintendo Switch release, **version 1.0.0, with no update applied**, extracted
+into a folder that holds `exefs/` and `romfs/`:
+
+| Game | Title ID | Version | Files checked |
+|---|---|---|---|
+| Donkey Kong Country Returns HD | `01009D901BC56000` | 1.0.0 | 368 |
+| Donkey Kong Country: Tropical Freeze | `0100C1F0051B6000` | 1.0.0 | 88 |
+
+The launcher checks every file by size and SHA-256 and tells you plainly if a file is missing, damaged, or from
+another version (usually an update applied on top).
+
+**A computer to build on** — Linux on x86-64:
+
+- **CPU** with AVX2 (Intel Haswell / AMD Zen or newer). The Steam Deck qualifies to *run* the game, but it has no
+  compiler: build on a PC and import the build.
+- **GPU** with Vulkan.
+- **Disk**: about 4.2 GB for Returns HD and 1.6 GB for Tropical Freeze, plus your copy.
+- **Build tools**: `clang`, `lld`, `ninja`, `pkg-config`, `python3` (with `venv`), and the development packages of
+  SDL3, Vulkan, Opus, libvpx and zlib. If something is missing, the launcher shows the exact install command for your
+  distribution.
+- **Internet**, once, on the first Prepare (it sets up its Python modules, about 40 MB).
+
 ## Install
 
 1. Download the AppImage from [Releases](https://github.com/zWalt01/Country-Box/releases) and make it
@@ -56,8 +80,6 @@ was walked end to end by the game's own **Super Guide**, level by level, not by 
 **Steam Deck:** SteamOS has no compiler. Build on a Linux PC and use **Import a build** on the Deck.
 **With an AI agent:** give it [AGENT-INSTALL.md](AGENT-INSTALL.md) — it drives the launcher's command line, which
 answers in JSON. Requirements, the manual build and the Deck steps: [docs/INSTALL.md](docs/INSTALL.md).
-
-**Requires** a 64-bit x86 CPU with AVX2 (Intel Haswell / AMD Zen or newer, Steam Deck) and a Vulkan GPU.
 
 ## About
 

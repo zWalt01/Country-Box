@@ -5,7 +5,7 @@
 **Ports nativos para Linux y Steam Deck de *Donkey Kong Country Returns HD* y *Donkey Kong Country: Tropical Freeze*,
 compilados en tu computadora a partir de tu propia copia.**
 
-[English](../README.md) · [Sobre el proyecto](ABOUT.es.md) · [Instalar](INSTALL.md) · [Instalar con un agente de IA](../AGENT-INSTALL.md) ·
+[English](../README.md) · [Sobre el proyecto](ABOUT.es.md) · [Requisitos](#requisitos) · [Instalar](INSTALL.md) · [Instalar con un agente de IA](../AGENT-INSTALL.md) ·
 [Cómo se probó](TESTING.md) · [Problemas conocidos](KNOWN-ISSUES.md) · [Cambios](../CHANGELOG.md)
 
 ![El launcher de Country-Box](images/launcher.webp)
@@ -39,6 +39,30 @@ Todas las cifras están medidas (2026-11-11/12) y su fuente está en [TESTING.md
 "tirón" es un frame que se queda en pantalla más de dos refrescos. Returns HD se
 recorrió completo con la propia **Súper Guía** del juego, nivel por nivel, no a mano.
 
+## Requisitos
+
+**Tu propia copia del juego**: la versión de Nintendo Switch, **versión 1.0.0, sin actualizaciones aplicadas**,
+extraída en una carpeta que contenga `exefs/` y `romfs/`:
+
+| Juego | Title ID | Versión | Archivos verificados |
+|---|---|---|---|
+| Donkey Kong Country Returns HD | `01009D901BC56000` | 1.0.0 | 368 |
+| Donkey Kong Country: Tropical Freeze | `0100C1F0051B6000` | 1.0.0 | 88 |
+
+El launcher verifica cada archivo por tamaño y SHA-256 y te dice claramente si falta uno, si está dañado o si es de
+otra versión (normalmente, una actualización aplicada encima).
+
+**Una computadora para compilar**: Linux en x86-64.
+
+- **CPU** con AVX2 (Intel Haswell / AMD Zen o más nuevo). La Steam Deck sirve para *jugar*, pero no trae compilador:
+  compila en una PC e importa la build.
+- **GPU** con Vulkan.
+- **Disco**: unos 4.2 GB para Returns HD y 1.6 GB para Tropical Freeze, más tu copia.
+- **Herramientas de compilación**: `clang`, `lld`, `ninja`, `pkg-config`, `python3` (con `venv`) y los paquetes de
+  desarrollo de SDL3, Vulkan, Opus, libvpx y zlib. Si falta algo, el launcher muestra el comando exacto para tu
+  distribución.
+- **Internet**, una vez, en el primer Prepare (prepara sus módulos de Python, unos 40 MB).
+
 ## Instalar
 
 1. Baja el AppImage desde [Releases](https://github.com/zWalt01/Country-Box/releases) y dale permiso de ejecución.
@@ -55,8 +79,6 @@ recorrió completo con la propia **Súper Guía** del juego, nivel por nivel, no
 **Steam Deck:** SteamOS no trae compilador. Compila en una PC con Linux y usa **Import a build** en la Deck.
 **Con un agente de IA:** dale [AGENT-INSTALL.md](../AGENT-INSTALL.md): maneja la línea de comandos del launcher, que
 responde en JSON. Requisitos, compilación manual y pasos de la Deck: [INSTALL.md](INSTALL.md).
-
-**Requiere** un CPU x86 de 64 bits con AVX2 (Intel Haswell / AMD Zen o más nuevo, Steam Deck) y una GPU con Vulkan.
 
 ## Sobre el proyecto
 
