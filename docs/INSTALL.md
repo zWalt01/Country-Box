@@ -2,25 +2,46 @@
 
 **[Español](README.es.md)** is the Spanish overview; this page is English only.
 
-Country-Box does not include any game. Before you start, you need your own copy of the game,
-**already extracted** into two folders: `exefs/` and `romfs/`. Country-Box verifies what you give it
-against the supported version's hashes (Returns HD 1.0.0 US, title id `01009D901BC56000`). It does not
-extract, decrypt or dump anything. See [../LEGAL.md](../LEGAL.md).
+Country-Box does not include any game: you need your own copy, **already extracted** into `exefs/` and `romfs/`.
+It does not extract, decrypt or dump anything. See [../LEGAL.md](../LEGAL.md).
+
+## With the launcher (recommended)
+
+1. Download the AppImage from [Releases](https://github.com/zWalt01/Country-Box/releases) and make it executable
+   (`chmod +x Country-Box-*.AppImage`).
+2. Open it, choose **Add your copy**, and point it at the folder that holds `exefs/` and `romfs/`.
+3. Press **PREPARE**. The first time it sets up its own Python modules (about 40 MB download), converts the game's
+   code, compiles it and prepares the shaders. If a system tool is missing, it shows the exact command for your
+   distribution.
+4. Press **PLAY**.
+
+With an AI agent: give it [AGENT-INSTALL.md](../AGENT-INSTALL.md) — it drives the launcher's command line
+(`--status`, `--add`, `--prepare`, `--play`), which answers in JSON.
 
 ## Requirements
 
-- Linux
-- Python 3.12+
-- `clang`, `lld`, `ninja`
-- SDL3, Vulkan, opus and vpx development packages (plus zlib for Tropical Freeze)
-- .NET 10 SDK, to build the shader translator
+**Game copy** — Nintendo Switch version 1.0.0, no update applied:
 
-Measured build times on a 16-thread PC (2026-11-10/11):
+| Game | Title ID | Version | Files checked | Tested with |
+|---|---|---|---|---|
+| Donkey Kong Country Returns HD | `01009D901BC56000` | 1.0.0 | 368 | US release |
+| Donkey Kong Country: Tropical Freeze | `0100C1F0051B6000` | 1.0.0 | 88 | US release |
 
-- Returns HD: 79 s of code generation plus 384 s of compilation (544 files, 0 errors).
-- Tropical Freeze: 40 s plus 3 min 32 s.
+Other regions usually ship the same files on Switch (not verified). The launcher checks every file by size and SHA-256
+and says plainly if one is missing, damaged, or from another version (usually an update applied on top).
 
-## Build steps
+**Computer** — Linux on x86-64:
+
+- CPU with AVX2 (Intel Haswell / AMD Zen or newer) and a Vulkan GPU.
+- Disk: about 4.2 GB for Returns HD and 1.6 GB for Tropical Freeze, plus your copy.
+- `clang`, `lld`, `ninja`, `pkg-config`, `python3` (with `venv`), and the development packages of SDL3, Vulkan, Opus,
+  libvpx and zlib.
+- Internet once, on the first Prepare.
+
+## Manual build (developers)
+
+Without the launcher, from a clone of this repository. Building the shader translator needs the .NET 10 SDK.
+
 
 ```sh
 git clone <this repository> && cd country-box/core

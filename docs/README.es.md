@@ -5,8 +5,8 @@
 **Ports nativos para Linux y Steam Deck de *Donkey Kong Country Returns HD* y *Donkey Kong Country: Tropical Freeze*,
 compilados en tu computadora a partir de tu propia copia.**
 
-[English](../README.md) · [Sobre el proyecto](ABOUT.es.md) · [Requisitos](#requisitos) · [Instalar](INSTALL.md) · [Instalar con un agente de IA](../AGENT-INSTALL.md) ·
-[Cómo se probó](TESTING.md) · [Problemas conocidos](KNOWN-ISSUES.md) · [Cambios](../CHANGELOG.md)
+[English](../README.md) · [Guía de instalación](INSTALL.md) · [Problemas conocidos](KNOWN-ISSUES.md) ·
+[Sobre el proyecto](ABOUT.es.md) · [Cambios](../CHANGELOG.md)
 
 ![El launcher de Country-Box](images/launcher.webp)
 
@@ -16,91 +16,65 @@ muestra capturas ni video de los juegos.*
 </div>
 
 Quería jugar estos dos juegos de forma nativa en mi Steam Deck, fáciles de instalar y fluidos al jugar, y no encontré
-ninguna recompilación de ninguno. Así que hice una. Country-Box es una **recompilación estática**: el código ARM64 del
-juego de Switch se convierte a C, se compila para x86-64 y se enlaza con un runtime que reemplaza el sistema de la
-consola y dibuja sus gráficos con Vulkan. El resultado es un ejecutable nativo de Linux.
+ninguna recompilación de ninguno. Así que hice una. El código del juego se convierte a C y se compila como un programa
+nativo de Linux en tu propia computadora.
 
-> **Country-Box no incluye nada del juego.** Tú pones tu propia copia (la versión 1.0.0 de Nintendo Switch de cada juego, sin actualizaciones aplicadas,
-> extraída en carpetas `exefs/` + `romfs/`). El launcher
-> la verifica archivo por archivo, compila el juego para tu computadora y lo ejecuta. Nada aquí extrae ni descifra
-> nada, y este proyecto nunca dice dónde conseguir un juego.
-
-## Estado — versión 1.0.1
-
-| | Donkey Kong Country Returns HD | Donkey Kong Country: Tropical Freeze |
-|---|---|---|
-| Jugable | ✅ juego completo, PC y Steam Deck (barrido con Súper Guía) | ✅ jugado en PC y Steam Deck (sin barrido completo) |
-| Fluidez | 60 fps de media en los **81 niveles**, PC y Steam Deck; 99.97 % (PC) y 99.92 % (Deck) de los frames sin tirones | 60 fps de media en los tres niveles medidos |
-| Shaders preparados antes de jugar | ✅ 0 compilados al jugar (5 niveles, caché vacío) | ⚠️ ~30 se traducen aún en cada carga de nivel ([problema conocido](KNOWN-ISSUES.md)) |
-| 16:10 nativo (pantalla de la Deck) | — (16:9) | ✅ (las cinemáticas de video salen estiradas) |
-| Steam Deck (OLED) | los 81 niveles a 60 fps con la APU a **8–9 W** | jugado en la Deck |
-
-Todas las cifras están medidas (2026-11-11/12) y su fuente está en [TESTING.md](TESTING.md) (en inglés); un
-"tirón" es un frame que se queda en pantalla más de dos refrescos. Returns HD se
-recorrió completo con la propia **Súper Guía** del juego, nivel por nivel, no a mano.
+> **Country-Box no incluye nada de los juegos.** Tú pones tu propia copia; el launcher la verifica, compila el juego y
+> lo ejecuta. Nada aquí extrae ni descifra nada, y este proyecto nunca dice dónde conseguir un juego.
 
 ## Requisitos
 
-**Tu propia copia del juego**: la versión de Nintendo Switch, **versión 1.0.0, sin actualizaciones aplicadas**,
-extraída en una carpeta que contenga `exefs/` y `romfs/`:
+**Tu propia copia del juego**: Nintendo Switch, sin actualizaciones aplicadas, extraída en una carpeta con `exefs/` y
+`romfs/`:
 
-| Juego | Title ID | Versión | Archivos verificados |
+| Juego | Versión | Región probada | Title ID |
 |---|---|---|---|
-| Donkey Kong Country Returns HD | `01009D901BC56000` | 1.0.0 | 368 |
-| Donkey Kong Country: Tropical Freeze | `0100C1F0051B6000` | 1.0.0 | 88 |
+| Donkey Kong Country Returns HD | 1.0.0 | EE. UU. | `01009D901BC56000` |
+| Donkey Kong Country: Tropical Freeze | 1.0.0 | EE. UU. | `0100C1F0051B6000` |
 
-El launcher verifica cada archivo por tamaño y SHA-256 y te dice claramente si falta uno, si está dañado o si es de
-otra versión (normalmente, una actualización aplicada encima).
+En Switch, las otras regiones suelen traer los mismos archivos; el launcher revisa tu copia y te dice si coincide.
 
-**Una computadora para compilar**: Linux en x86-64.
+**Una computadora para compilarlo:**
 
-- **CPU** con AVX2 (Intel Haswell / AMD Zen o más nuevo). La Steam Deck sirve para *jugar*, pero no trae compilador:
-  compila en una PC e importa la build.
-- **GPU** con Vulkan.
-- **Disco**: unos 4.2 GB para Returns HD y 1.6 GB para Tropical Freeze, más tu copia.
-- **Herramientas de compilación**: `clang`, `lld`, `ninja`, `pkg-config`, `python3` (con `venv`) y los paquetes de
-  desarrollo de SDL3, Vulkan, Opus, libvpx y zlib. Si falta algo, el launcher muestra el comando exacto para tu
-  distribución.
-- **Internet**, una vez, en el primer Prepare (prepara sus módulos de Python, unos 40 MB).
+- **Linux en x86-64** con un CPU que tenga AVX2 (Intel Haswell / AMD Zen o más nuevo) y una GPU con Vulkan.
+- **Herramientas de compilación** (`clang`, `lld`, `ninja` y algunas librerías): si falta alguna, el launcher te da el
+  comando exacto para tu distribución.
+- **Steam Deck:** ejecuta el juego, pero no lo puede compilar. Compílalo en una PC con Linux y usa **Import a build**
+  en la Deck.
 
 ## Instalar
 
 1. Baja el AppImage desde [Releases](https://github.com/zWalt01/Country-Box/releases) y dale permiso de ejecución.
-2. Ábrelo, elige **Add your copy** y señala la carpeta de tu juego extraído.
-3. Pulsa **PREPARE**. El launcher prepara lo que necesita, convierte y compila el juego para tu computadora y prepara
-   los shaders. Si falta una herramienta del sistema, te da el comando exacto para tu distribución.
+2. Ábrelo, elige **Add your copy** y señala la carpeta de tu juego.
+3. Pulsa **PREPARE**: unos 9 minutos para *Returns HD* y 2½ para *Tropical Freeze* en una PC de 8 núcleos, una sola vez.
 4. Pulsa **PLAY**.
 
-| Primera compilación (Ryzen 7 5700X3D, 16 hilos) | Returns HD | Tropical Freeze |
-|---|---|---|
-| Primera vez | **9 min 21 s** | **2 min 31 s** |
-| Tras una actualización | segundos: sólo se recompila lo que cambió | 10 s |
+Las actualizaciones se instalan solas y sólo recompilan lo que cambió. ¿Usas un agente de IA? Dale
+[AGENT-INSTALL.md](../AGENT-INSTALL.md). Todos los detalles: [INSTALL.md](INSTALL.md).
 
-**Steam Deck:** SteamOS no trae compilador. Compila en una PC con Linux y usa **Import a build** en la Deck.
-**Con un agente de IA:** dale [AGENT-INSTALL.md](../AGENT-INSTALL.md): maneja la línea de comandos del launcher, que
-responde en JSON. Requisitos, compilación manual y pasos de la Deck: [INSTALL.md](INSTALL.md).
+## Estado — versión 1.0.1
+
+| | Returns HD | Tropical Freeze |
+|---|---|---|
+| Jugable | ✅ juego completo, PC y Steam Deck | ✅ PC y Steam Deck |
+| Fluidez | 60 fps en los 81 niveles; 99.9 % de los frames sin tirones | 60 fps en los niveles medidos |
+| Steam Deck | 60 fps con la APU a 8–9 W | se juega bien |
+| Shaders | todos preparados antes de jugar | algunos se compilan al cargar un nivel: pausas cortas ([problema conocido](KNOWN-ISSUES.md)) |
+| Pantalla 16:10 | 16:9 | ✅ 16:10 nativo |
+
+Cómo se midió cada cifra: [TESTING.md](TESTING.md) (en inglés).
 
 ## Sobre el proyecto
 
 Soy Walter, estudiante de ciencia de datos, y quería saber qué tan difícil es de verdad un proyecto así. Lo construí
-dirigiendo agentes de IA y comprobando cada resultado con corridas reales; la historia completa está en
+dirigiendo agentes de IA y comprobando cada resultado con corridas reales; la historia está en
 [ABOUT.es.md](ABOUT.es.md). Dudas y errores: [Issues](https://github.com/zWalt01/Country-Box/issues).
 
-## Créditos
+Basado en el núcleo de recompilación de [Metroid Prime 4 Recomp](https://github.com/jaigner-hub/metroid-prime-4-recomp)
+de Jeff Aigner y los proyectos detrás de él; créditos completos en [CREDITS.md](CREDITS.md).
 
-El núcleo de recompilación viene de **[Metroid Prime 4 Recomp](https://github.com/jaigner-hub/metroid-prime-4-recomp)**
-de Jeff Aigner (MIT, commit `6c9c590`), que trae el linaje de fe3h-pc-recomp, totk-pc-recomp, LAS Recomp y otros; se
-usa con crédito completo como base de un proyecto nuevo, no como fork. Cada componente, con su commit y licencia:
-[core/THIRD_PARTY_NOTICES.md](../core/THIRD_PARTY_NOTICES.md); resumen: [CREDITS.md](../CREDITS.md). Fuentes: BIZ
-UDPGothic y Noto Sans (SIL OFL), descargadas al compilar.
+## Licencia y aviso legal
 
-## Licencia
-
-MIT — ver [LICENSE](../LICENSE). `core/` conserva su licencia MIT original y los encabezados de cada archivo.
-
-## Legal
-
-*Donkey Kong Country Returns HD* y *Donkey Kong Country: Tropical Freeze* son propiedad de Nintendo / Retro Studios /
-Forever Entertainment. Country-Box es un proyecto independiente y sin fines de lucro, sin relación con ellos ni su
-respaldo. No contiene código, recursos, llaves ni firmware de los juegos. Necesitas tu propia copia obtenida legalmente. Declaración completa:
-[LEGAL.es.md](LEGAL.es.md).
+MIT — ver [LICENSE](../LICENSE). *Donkey Kong Country Returns HD* y *Tropical Freeze* pertenecen a Nintendo, Retro
+Studios y Forever Entertainment; Country-Box es un proyecto independiente y sin fines de lucro, sin relación con ellos.
+Necesitas tu propia copia obtenida legalmente. Declaración completa: [LEGAL.es.md](LEGAL.es.md).

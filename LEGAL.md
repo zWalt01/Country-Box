@@ -38,7 +38,7 @@ these games.
 
 Country-Box is released under the [MIT License](LICENSE). It is provided **"as is", without warranty of any kind**:
 use it at your own risk, and keep backups of your saves. Third-party components and their licenses are listed in
-[core/THIRD_PARTY_NOTICES.md](core/THIRD_PARTY_NOTICES.md) and summarized in [CREDITS.md](CREDITS.md).
+[core/THIRD_PARTY_NOTICES.md](core/THIRD_PARTY_NOTICES.md) and summarized in [docs/CREDITS.md](docs/CREDITS.md).
 
 ## Removal requests
 

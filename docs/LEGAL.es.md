@@ -38,7 +38,7 @@ ligadas a estos juegos.
 
 Country-Box se publica bajo la [licencia MIT](../LICENSE). Se entrega **"tal cual", sin garantía de ningún tipo**:
 úsalo bajo tu propio riesgo y respalda tus partidas. Los componentes de terceros y sus licencias están en
-[core/THIRD_PARTY_NOTICES.md](../core/THIRD_PARTY_NOTICES.md) y resumidos en [CREDITS.md](../CREDITS.md).
+[core/THIRD_PARTY_NOTICES.md](../core/THIRD_PARTY_NOTICES.md) y resumidos en [CREDITS.md](CREDITS.md).
 
 ## Peticiones de retiro
 
