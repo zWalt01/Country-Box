@@ -1,0 +1,44 @@
+# Title screen to gameplay on the profile's save: A once a second from the logo through the title, the file select
+# and the load (gameplay by about tick 2700, 45 s). tools/run_game.py's default --script. Format: <tick> <button> <hold>,
+# ticks of 60 Hz display time (runtime/input_win.c).
+300 A 10
+360 A 10
+420 A 10
+480 A 10
+540 A 10
+600 A 10
+660 A 10
+720 A 10
+780 A 10
+840 A 10
+900 A 10
+960 A 10
+1020 A 10
+1080 A 10
+1140 A 10
+1200 A 10
+1260 A 10
+1320 A 10
+1380 A 10
+1440 A 10
+1500 A 10
+1560 A 10
+1620 A 10
+1680 A 10
+1740 A 10
+1800 A 10
+1860 A 10
+1920 A 10
+1980 A 10
+2040 A 10
+2100 A 10
+2160 A 10
+2220 A 10
+2280 A 10
+2340 A 10
+2400 A 10
+2460 A 10
+2520 A 10
+2580 A 10
+2640 A 10
+2700 A 10

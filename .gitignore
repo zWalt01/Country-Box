@@ -1,0 +1,34 @@
+# Archivos del juego, llaves y derivados: NUNCA en el repo (ver AGENTS.md)
+*.nsp
+*.xci
+*.nca
+*.nso
+*.keys
+prod.keys
+title.keys
+exefs/
+romfs/
+extracted/
+generated/
+work/
+dumps/
+*.dat
+*_code.so
+shader_cache/
+save/
+saves/
+
+# Build y entornos
+build/
+dist/
+*.o
+*.so
+*.AppImage
+venv/
+.venv/
+__pycache__/
+
+# Logs y perfiles locales
+*.log
+performance.txt
+threads.txt

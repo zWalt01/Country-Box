@@ -1,0 +1,1850 @@
+# Country-Box: manifest of Donkey Kong Country Returns HD 1.0.0 (base game, no update), for the launcher's copy check.
+# Hashes and sizes only, measured from a retail dump on 2026-11-12 by launcher/make_manifest.py.
+format = 1
+game = "dkcrhd"
+name = "Donkey Kong Country Returns HD"
+title_id = "01009D901BC56000"
+version = "1.0.0"
+version_key = "v0"
+files = 368
+bytes = 15384800427
+
+[[file]]
+path = "exefs/main"
+size = 39980263
+sha256 = "5417520786a3a0bab8ff3326949b676b6c59a6bbee5afab94bdbeade60c61ebc"
+
+[[file]]
+path = "exefs/main.npdm"
+size = 1604
+sha256 = "1764f798d19e966e08f3d3b26b01d5239e1287baef32c60bba451cceb91ea542"
+
+[[file]]
+path = "exefs/rtld"
+size = 8180
+sha256 = "a43abf145ade81469158b536bd277377b60814a90ee5bebb00dc02b13996d70c"
+
+[[file]]
+path = "exefs/sdk"
+size = 5976954
+sha256 = "497fd0ebea2b016ccd0edb6b4e2efa5fc262f2cff6438dd64c0cbaa26b22a90b"
+
+[[file]]
+path = "exefs/subsdk0"
+size = 3415764
+sha256 = "8a2f970bcfc0d411526af185df22ab2c4e3a06e69d2dae649bcfc352fd6b48da"
+
+[[file]]
+path = "romfs/Data/Managed/Metadata/global-metadata.dat"
+size = 9727320
+sha256 = "18b3734bef5e4f45e9d1e2eed95008ab6044f78117a90c94405d11c7651a6ea6"
+
+[[file]]
+path = "romfs/Data/Managed/Resources/mscorlib.dll-resources.dat"
+size = 337563
+sha256 = "c5baa176a5b72cd545266340e42102d393a5e43d38c95796bc828918bb95277f"
+
+[[file]]
+path = "romfs/Data/Resources/unity default resources"
+size = 733992
+sha256 = "afe5403992c6810b05659d4642db92016b15c4c8a333fa4c93d420b2c7ab4548"
+
+[[file]]
+path = "romfs/Data/Resources/unity_builtin_extra"
+size = 406768
+sha256 = "377db9100a1e779f998bdee4ded3b59e452596a03bd122f147180cfb1616ff0b"
+
+[[file]]
+path = "romfs/Data/RuntimeInitializeOnLoads.json"
+size = 1519
+sha256 = "ead7ddf197fe7c3f751aa6ec3239949afbc925eae03f332ebd95fb7a526f8b3c"
+
+[[file]]
+path = "romfs/Data/ScriptingAssemblies.json"
+size = 3242
+sha256 = "a6d93b031ba716fec9c57ee5194fb12a6d57f3952a339cf6b95d70879bfbdbcb"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/Version.txt"
+size = 38
+sha256 = "91b0c75d73fae844a2bac066e88151334edd54b7b7a8a3c914f208f754d2f1d7"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/movies/EB_A.mp4"
+size = 67414678
+sha256 = "e692dbe11640ba0ea915f9fee65c5409a6d3f12dfd5df840e0a92e814286ad5e"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/movies/EB_B.mp4"
+size = 66932898
+sha256 = "59b76f47837c9a2175f5755e2b895c94f91b74ca91654cc9ac150f95fea077a6"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/movies/EB_C.mp4"
+size = 66073212
+sha256 = "8daa5fa5961a26c84bacc71c0e8e25d1241d64ec2cea6ac00909197ebf5bc283"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/movies/FBI_A.mp4"
+size = 161647788
+sha256 = "fbc1370c8a93bfd2e219ff5b0865e8cb137019f01c4a8e7659bb78e3d64609be"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/movies/FBI_B.mp4"
+size = 161648380
+sha256 = "4065ec2f6c90242d8f2d227ee1901b731236b1daef0a4912a734edc76c772826"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/movies/FBI_C.mp4"
+size = 161840972
+sha256 = "3a27fd367a6b5ad66092408e605cf62522e350b644fe4c414d6c02fe17bb8fc9"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/movies/FBO_A.mp4"
+size = 132113696
+sha256 = "f917f39c1d4f0a41933d56176ccfee2579fca351b4e5dae16565fc21060d1230"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/movies/FBO_B.mp4"
+size = 136641798
+sha256 = "0e22a0401241f6c8ab9165e708fb6b62fe35733c7a87b85e41fe4433b1c052e8"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/movies/FBO_C.mp4"
+size = 136899317
+sha256 = "056a5777cc7517bc79770d6c2b3dd1b10158173a34add69554f98c6462fb6cf2"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/movies/GI.mp4"
+size = 237734375
+sha256 = "7df3ccfb161c2170c77bd48074d0c9f4a9d72d0c32232fb2d7dcefc09ac7b6f9"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/movies/SW.mp4"
+size = 56112231
+sha256 = "5d2848a6e73aa2bde6b648a24e9d42be29cc2808698a08c308c9636238655acb"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/movies/attract01.mp4"
+size = 69337681
+sha256 = "c076a2a0036aece2def919bf429f3adf7b4750cc44f682f41495165a5a8a8dc8"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/movies/attract02.mp4"
+size = 68406564
+sha256 = "7aefa006a7a93a5d06f1c8dd12a6024bceb7e90bfe6f4a6730aede2525b1813f"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/movies/attract03.mp4"
+size = 63597238
+sha256 = "6d4c9d992b67ed96b4d3a4493d4086a8313329139fcfe925ac27b6ab9b42ccdf"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/system.sav"
+size = 88
+sha256 = "a55e225f543faa3d08591d515944ee294d9d2dd0409ab28912155c66b6e3ab61"
+
+[[file]]
+path = "romfs/Data/StreamingAssets/vibrations/Preloaded.vib"
+size = 64754
+sha256 = "e465b78ef5f87c851633d22d57f9e81c5349c24d0f7acd1c6260aea552c9929f"
+
+[[file]]
+path = "romfs/Data/boot.config"
+size = 292
+sha256 = "6e694aa6ada8f4f615a44bad81c338b8ca11b982e574aeaa9a6222846ee01478"
+
+[[file]]
+path = "romfs/Data/globalgamemanagers"
+size = 1638164
+sha256 = "653c18b37a9dd1e16384234bdbe7b6377672ea3306b3953e80714b9ebc396beb"
+
+[[file]]
+path = "romfs/Data/globalgamemanagers.assets"
+size = 1052224
+sha256 = "ec0791e3c063a8ed33ccc2fe0aefe6bbdc5fffe6d9a5a1c1bbea16d1bc923952"
+
+[[file]]
+path = "romfs/Data/globalgamemanagers.assets.resS"
+size = 356352
+sha256 = "210835b059ef8a62aa2b285bd1a9bde7a863be0cdaa56a778bf2eb432ac1f07c"
+
+[[file]]
+path = "romfs/Data/level0"
+size = 2132
+sha256 = "70026c093b8d07bb04522bfae633c2aafc08da9dbaba1e9ad63612525050bfee"
+
+[[file]]
+path = "romfs/Data/level1"
+size = 708
+sha256 = "cba3d9c34c7579913a72d1f1e7e2d05dd4e1840d82f7d48fa97769a463d41735"
+
+[[file]]
+path = "romfs/Data/level10"
+size = 19005828
+sha256 = "f4286156de591738f2c7d37f9a9c6f708137722dfafaf2e48b3e2ab2a4323087"
+
+[[file]]
+path = "romfs/Data/level11"
+size = 11402628
+sha256 = "e44e671841a040c083ff5d030b71c506e1c3a096f21eb6d321038f4080229264"
+
+[[file]]
+path = "romfs/Data/level12"
+size = 15059344
+sha256 = "9f088287ce34140ef10e5fe7ac9e15fbfc8b80f6058e94c0ab161a7ca2febc4d"
+
+[[file]]
+path = "romfs/Data/level13"
+size = 14478924
+sha256 = "83f3a56795f588f55fce28dc6ab6bf6fad424f2b27bb57708500f134b0aed837"
+
+[[file]]
+path = "romfs/Data/level14"
+size = 11505780
+sha256 = "4b809f3dc2be315c07e945a6c6d6292697871f65b5bb53fa0a8853433488c1d9"
+
+[[file]]
+path = "romfs/Data/level15"
+size = 5822108
+sha256 = "be41ca201eee5ec872d9181d8baf67c9e1aa01587b14c4de73d179036d3ce9e3"
+
+[[file]]
+path = "romfs/Data/level16"
+size = 25793296
+sha256 = "9cfd10f03132bbc167a77ce3d233cbe946d265ba84c32b342687a5dd89547139"
+
+[[file]]
+path = "romfs/Data/level17"
+size = 17633732
+sha256 = "475db2a37c36f29227149486d46bb9dd676da3e3889b941cf153acbe6d90f4aa"
+
+[[file]]
+path = "romfs/Data/level18"
+size = 27421652
+sha256 = "9939bbe4128e4bf53e62a943f272a443e134e733a31a0cdc3c8a828ad5ed13df"
+
+[[file]]
+path = "romfs/Data/level19"
+size = 11917492
+sha256 = "d542dc3f0aaeb2bff6008b75b9e1a624d2a81cd1dac359984e5401bef6d4e6c3"
+
+[[file]]
+path = "romfs/Data/level2"
+size = 5480984
+sha256 = "5d5477c304df3ac848b7d60f67df515fd5f8b4613f62bc41b84f798536883308"
+
+[[file]]
+path = "romfs/Data/level20"
+size = 26664780
+sha256 = "9db9e987174c454516734fd74c7890937849ef7c2b74a1ac81604e037f6a64fe"
+
+[[file]]
+path = "romfs/Data/level21"
+size = 31733172
+sha256 = "eda495f016669ff0921b3197c232550def492994c78ee0f50714b25ead2b0e43"
+
+[[file]]
+path = "romfs/Data/level22"
+size = 7273508
+sha256 = "672024ea5ba5e8e813879def051828af95603f9f77aac85d41e6d7b52b86a239"
+
+[[file]]
+path = "romfs/Data/level23"
+size = 24208208
+sha256 = "e9fba43a1169bb355906d740797553daa10d6fd467491fd3cada7e1ce319600e"
+
+[[file]]
+path = "romfs/Data/level24"
+size = 26080764
+sha256 = "74332683eea7e194b008250786ef182e21943da2f297af2dfef8a237e0f1738e"
+
+[[file]]
+path = "romfs/Data/level25"
+size = 19199180
+sha256 = "1bbdc5b2fb793a06180c3398a4d1791fdb9e40b830412d51be695b3ebfadb45f"
+
+[[file]]
+path = "romfs/Data/level26"
+size = 23140348
+sha256 = "21cfb175e9bd74e75969f86a5b7a65b45ecf1d8b8dd648261525841f75cc9d57"
+
+[[file]]
+path = "romfs/Data/level27"
+size = 10457068
+sha256 = "18eac970c6dacabd4ccd9b0bc1715307f4d0faba551ac0daa27e20d0f8ada1f3"
+
+[[file]]
+path = "romfs/Data/level28"
+size = 19758180
+sha256 = "1cbfc110179f48590add0e2557748a716b0f50b77f27fe8101bc1ffca89ab9cd"
+
+[[file]]
+path = "romfs/Data/level29"
+size = 14997412
+sha256 = "3e90b850481a3057ffa5c34b6b1dca311f23579668afb4b4e127691c474e8da6"
+
+[[file]]
+path = "romfs/Data/level3"
+size = 13187960
+sha256 = "761f654efd22c781ce553a4c85ec5646dbfa9bae11005a49d75867eaaa3650bd"
+
+[[file]]
+path = "romfs/Data/level30"
+size = 8595684
+sha256 = "fb6a18b2b3ceb04d42ce207f797dfa85acc14e5ab256c76d11685fffbcd28cd2"
+
+[[file]]
+path = "romfs/Data/level31"
+size = 27201760
+sha256 = "c936447c296f8165b2091e3f6011bd01cd22a9b5a496839b57b1d3d0452b0905"
+
+[[file]]
+path = "romfs/Data/level32"
+size = 27115424
+sha256 = "989c81a1cd197447164dadf821bb1f4f84aeaeaa045c37f02d102ccb7b351afe"
+
+[[file]]
+path = "romfs/Data/level33"
+size = 29355080
+sha256 = "aa647c0057d1cfd3f24cff6503f2c88f193d262c54d3cf3e7b34368d1870f1f0"
+
+[[file]]
+path = "romfs/Data/level34"
+size = 28721976
+sha256 = "7ac7f5e716635dce0d0b21391687bd3bd1b71d8ac11263cc7dcbcdb9bb0f45af"
+
+[[file]]
+path = "romfs/Data/level35"
+size = 30501404
+sha256 = "56ef89352ef1ae989c60b087d0b8102015776a7eb51526513a1406a49ad7a394"
+
+[[file]]
+path = "romfs/Data/level36"
+size = 19754092
+sha256 = "f236142251ed714d39641e77ed08b8db38792092fa78e941376dd94f185a4fc3"
+
+[[file]]
+path = "romfs/Data/level37"
+size = 12718244
+sha256 = "7cf82ea888db457ea369947bb2e3987d39097550bda800b30f6aa095abb87676"
+
+[[file]]
+path = "romfs/Data/level38"
+size = 25558848
+sha256 = "61ec5edb352df533219a3e9035a6fe6e551b4c7c846a1a42df3c2144f8e2212c"
+
+[[file]]
+path = "romfs/Data/level39"
+size = 26830324
+sha256 = "a0c7a014c45428272d03bdd9d048147ad8b39083493fd63fdf00f3c63e818939"
+
+[[file]]
+path = "romfs/Data/level4"
+size = 7327708
+sha256 = "a714f0a2eb0b349cbb083322cbadf49f83c6768e207b1466a1ba4db63ab1bfbd"
+
+[[file]]
+path = "romfs/Data/level40"
+size = 28146420
+sha256 = "a19efcc984ac3609c777fb51eb5b857da7605194e71d2e8879e150a0d484318f"
+
+[[file]]
+path = "romfs/Data/level41"
+size = 19856220
+sha256 = "48f85eb47e93bdde7f205f7b9a11e19b9400a994159ab1249d44952efb805163"
+
+[[file]]
+path = "romfs/Data/level42"
+size = 21454084
+sha256 = "af7d64cf5ca5d6cc351821806c499cfe8fc036a875ab6d9c8bb1a1b1cfe942da"
+
+[[file]]
+path = "romfs/Data/level43"
+size = 18011824
+sha256 = "8574972197f7cce12222a324453f4c1c2b16cd30043dda9c49fa9c1e619f7f07"
+
+[[file]]
+path = "romfs/Data/level44"
+size = 31270172
+sha256 = "0480a6967ee48d0fbec5ec713f7199655dbf0076b1ab54b9f8c8f6e9b1ad8c61"
+
+[[file]]
+path = "romfs/Data/level45"
+size = 31399380
+sha256 = "e709f25c8c7eb189a8113fb0ea7846e4df5ec4612efddafd70b2990494f94ac4"
+
+[[file]]
+path = "romfs/Data/level46"
+size = 23078712
+sha256 = "b76fb9a5e4cb4973d42b44862f5c564e307e2f0af79b6fd94d6d8c44897e3afa"
+
+[[file]]
+path = "romfs/Data/level47"
+size = 29760444
+sha256 = "ea320539dc327da2366ceff3e076ee1af5643d3f76c075c1a42a164797d59ddf"
+
+[[file]]
+path = "romfs/Data/level48"
+size = 30143372
+sha256 = "067cfde177560f2843ab39a77fc0d2365c65818b0127ab700aa2a7698a115ac8"
+
+[[file]]
+path = "romfs/Data/level49"
+size = 27304232
+sha256 = "a706f6976d9970ae31cccc3100d30ea11eefad4824b66757098925549ef7d0e4"
+
+[[file]]
+path = "romfs/Data/level5"
+size = 186424
+sha256 = "7282bd0efc7663dd921ff0b6205b2f8197ba12111575021a7a462b39a70e2d96"
+
+[[file]]
+path = "romfs/Data/level50"
+size = 26210232
+sha256 = "035a8836c254eb666a195661a875a249a3565994bf3a5445296724c8d4a85b0f"
+
+[[file]]
+path = "romfs/Data/level51"
+size = 21959452
+sha256 = "c5000030ca6bdab3eb9f7ca16d925ffffa596f59e625c81032fa6ad33fa8c4f2"
+
+[[file]]
+path = "romfs/Data/level52"
+size = 11740096
+sha256 = "c76fbbe910c0e902a3edd0ed5cf2b3523d707a55a9a31649dfe35b46c72d8fc3"
+
+[[file]]
+path = "romfs/Data/level53"
+size = 23187308
+sha256 = "70d74249738f8782661f1a73a4cba7d9cd40ccc0cfb62b25dae675bdefe23419"
+
+[[file]]
+path = "romfs/Data/level54"
+size = 21144484
+sha256 = "8f2e51458e636f57ba8dd3d0215f4295499c40d0a39b87f3068fda73f1f2093a"
+
+[[file]]
+path = "romfs/Data/level55"
+size = 24198924
+sha256 = "4d398f117303c731e36ce1ce71b2564ecab947fbe57446f67b7504ab4d1cddc5"
+
+[[file]]
+path = "romfs/Data/level56"
+size = 23788652
+sha256 = "46b7a1f2b1a53d80a087f0d1c5e37c9be1726d971a35985347e0ada8188f54a7"
+
+[[file]]
+path = "romfs/Data/level57"
+size = 17396804
+sha256 = "0ba85c82d36b1296f93633bf91c0de06f11298d6f86c882d22e664bb6ab40312"
+
+[[file]]
+path = "romfs/Data/level58"
+size = 23851892
+sha256 = "b7975b7aa4dd08bb4b298d56d11b734a6dbab51287480c797719de018b6b7c9e"
+
+[[file]]
+path = "romfs/Data/level59"
+size = 25851572
+sha256 = "eba1f73d210cd039c7d655e0a490bc96f396b20503af9c8f3fe6ec7b14901c2b"
+
+[[file]]
+path = "romfs/Data/level6"
+size = 23746528
+sha256 = "ed1ec28f5d1b04b7cd0fa586533d4dc3da5b8284c848d734a758f661659eece2"
+
+[[file]]
+path = "romfs/Data/level60"
+size = 21186924
+sha256 = "8924a9d91ffe54a881d8b61b27f6375d4a84977c2ee4403acaff7b672e6a3960"
+
+[[file]]
+path = "romfs/Data/level61"
+size = 12473516
+sha256 = "b05503607b482eda1aa726f96fc0d974c8aecdb2ce36f8dad659d5a1660a1d6d"
+
+[[file]]
+path = "romfs/Data/level62"
+size = 16501788
+sha256 = "6b9cddebed3a1d9093117e4c4ee414886c557f241e08a6525e7c8925cabbf54f"
+
+[[file]]
+path = "romfs/Data/level63"
+size = 27016468
+sha256 = "5127baf61e59ee14f721fbf97e0096f52a7e26a3cfe8b654676a1a15115e64d6"
+
+[[file]]
+path = "romfs/Data/level64"
+size = 23591364
+sha256 = "8eea18a203e7c233b97c1049c1eb92f905a5364754a935bd28abdfc331b56493"
+
+[[file]]
+path = "romfs/Data/level65"
+size = 21462324
+sha256 = "91b391c443a7e13bcf38d9aaf25e8a6cc0bd1ad80f7c35a146ae2cd95368ec91"
+
+[[file]]
+path = "romfs/Data/level66"
+size = 23270852
+sha256 = "eb1eeb5f8815a866d88e8f5fadcad8c98582b33a515ca7391e14ba53ac957f69"
+
+[[file]]
+path = "romfs/Data/level67"
+size = 26827044
+sha256 = "002b305eddd906744e535e80265b73306e08686af3c8380a4e580d23b7a47f63"
+
+[[file]]
+path = "romfs/Data/level68"
+size = 29617476
+sha256 = "c60edc8136569955d17bc7866df3b1a50c93f595002555af62094eba9f4f4bd7"
+
+[[file]]
+path = "romfs/Data/level69"
+size = 12473492
+sha256 = "8b98916fbd4e2c81a44450f6b29baee0a33d2a2912e4c071f1bfda95e656a2b6"
+
+[[file]]
+path = "romfs/Data/level7"
+size = 12491348
+sha256 = "53f0c68b57f10bd26b5fa3ae5268ab6f354626f7043fa0196818814f3ca23536"
+
+[[file]]
+path = "romfs/Data/level70"
+size = 12160068
+sha256 = "0b603331fbcea7854e1dfcae6495f02fa05d3431b031343e0f18686bd2122840"
+
+[[file]]
+path = "romfs/Data/level71"
+size = 14971120
+sha256 = "e0401d7fd000d736a83404f009165e19946228149b08bcf25df609fcd55ef1da"
+
+[[file]]
+path = "romfs/Data/level72"
+size = 13525836
+sha256 = "dba16e63b49f393fffc49c3bb837aca5587f42abb8f397e71ebb5bb081ced78e"
+
+[[file]]
+path = "romfs/Data/level73"
+size = 17902136
+sha256 = "aaea2e165b19e0671eac223f8342dc23728e7245d2faffdb0dcd30f473780752"
+
+[[file]]
+path = "romfs/Data/level74"
+size = 12678992
+sha256 = "4de45df2ab672894689c95b140d366240bc3b062a153670d06aa298a11170021"
+
+[[file]]
+path = "romfs/Data/level75"
+size = 12356592
+sha256 = "4134fa5c1f82814b1da4440c1e124a0517f0ce6630961525e369f905c9843312"
+
+[[file]]
+path = "romfs/Data/level75.resS"
+size = 38400
+sha256 = "0bbc4f2e2c984b55469a02ae4a951b8866d1ef3ba554725b8fe37b1a32cf312d"
+
+[[file]]
+path = "romfs/Data/level76"
+size = 12793600
+sha256 = "ac2a77f0584ed999bc6c1412e121a446cc0f7910b7be482dfe185cb3d6681fe1"
+
+[[file]]
+path = "romfs/Data/level77"
+size = 13071800
+sha256 = "eac98cedc8000c7d1ce91f11fc4f779f088383ac2a226380802a67d7100c6fc2"
+
+[[file]]
+path = "romfs/Data/level78"
+size = 15598792
+sha256 = "872c829a3401dcf9abb2dca79c01033f700cb326a09276c8a86a25b4f7e852b0"
+
+[[file]]
+path = "romfs/Data/level79"
+size = 25817584
+sha256 = "39cc7ca616781b8ec0ab56e7c7d08024917885505e7a7968c72b2acdc8a7cb92"
+
+[[file]]
+path = "romfs/Data/level8"
+size = 15918612
+sha256 = "28d95f41fe2b99788fa355ac3ad85389378d73c9ecfc6df397d198b1076c15da"
+
+[[file]]
+path = "romfs/Data/level80"
+size = 32715724
+sha256 = "83e141178f2a7c4f54245d70c1608d34ce264a636b234fda0ac61675ac9e278d"
+
+[[file]]
+path = "romfs/Data/level81"
+size = 29444596
+sha256 = "802420ca96ab1886d88c303bd897cacc4134a6eacac9b248dac59931b2051a63"
+
+[[file]]
+path = "romfs/Data/level82"
+size = 32517984
+sha256 = "1e2bcfc1b645be5ec0418d4a1f07606fb7dbad9aaf107325c802a76e76c34671"
+
+[[file]]
+path = "romfs/Data/level83"
+size = 23606104
+sha256 = "ab2cca5dd17c412bb4e8a554394482891fb9aa904f5e90f3df6dba98f9070a69"
+
+[[file]]
+path = "romfs/Data/level84"
+size = 28287832
+sha256 = "348b392c3829bd4516385e3debea70dd3f146ba8c00c23fe695b74d8b9c1e1e2"
+
+[[file]]
+path = "romfs/Data/level85"
+size = 34790264
+sha256 = "9ec67d6d680ce6ed769f6216fff790171732443624e10af424dbe4c5ffd4bb37"
+
+[[file]]
+path = "romfs/Data/level86"
+size = 12896296
+sha256 = "782cd8cebe31c9b397300cc41e7de8e4736f332b1c653391a461b7823dd884be"
+
+[[file]]
+path = "romfs/Data/level9"
+size = 18404416
+sha256 = "3d94019ad5ffe3f6a73e109ac108c1928552fef5958b90928ad853423e3e7896"
+
+[[file]]
+path = "romfs/Data/rawsettings"
+size = 64
+sha256 = "803cf2eef7025debe622e588856c5f583d9e305341e833290a4855a81069bb86"
+
+[[file]]
+path = "romfs/Data/resources.assets"
+size = 23830728
+sha256 = "42a7ceeae8c5b32ec8793459a6c909ed34eb88b2d00a6a6a438f0f28cc679ee9"
+
+[[file]]
+path = "romfs/Data/resources.assets.resS"
+size = 233283584
+sha256 = "09a9aa1c55fd1594a2399660ef2f708f09ec4b3b0785ee5a419fa158291fb678"
+
+[[file]]
+path = "romfs/Data/resources.resource"
+size = 1028672
+sha256 = "2291a7d5992352299e6c9107c8df5f3564c92dbe15cc3aa995c7c5ae461818d4"
+
+[[file]]
+path = "romfs/Data/sharedassets0.assets"
+size = 361
+sha256 = "fce1e5993ca17f69f6a40aa95c32b8788781bb962253aca6effec2ce45a494ea"
+
+[[file]]
+path = "romfs/Data/sharedassets1.assets"
+size = 217
+sha256 = "752de4a141a85b34780189d1d06a4ad6bcd48ee7236303b0df8e820d8d952e74"
+
+[[file]]
+path = "romfs/Data/sharedassets10.assets"
+size = 8099308
+sha256 = "f43f6bdef330ac3b4ddbdbe365c41840b833f81d94bdfbc2e4ad29397ee48d88"
+
+[[file]]
+path = "romfs/Data/sharedassets10.assets.resS"
+size = 136704832
+sha256 = "89c98d3cd9088d3d7ce5adccb6cba849679d3cfb280bd54b7d603e5aa5b0756a"
+
+[[file]]
+path = "romfs/Data/sharedassets10.resource"
+size = 286912
+sha256 = "83f1f1fa83ca6b78972d130c883a2929758e1cef589cf8175d7d8e68ed6e312e"
+
+[[file]]
+path = "romfs/Data/sharedassets11.assets"
+size = 7456868
+sha256 = "5a1260121480719c5e9b80f33b3a217fc4b711253f3033d7bf3aaf9bf3c9a58a"
+
+[[file]]
+path = "romfs/Data/sharedassets11.assets.resS"
+size = 59885648
+sha256 = "a2159c05fce09165a3810346564140ba4987f1222088b4641e624586cb6f464e"
+
+[[file]]
+path = "romfs/Data/sharedassets11.resource"
+size = 1682784
+sha256 = "902ca8b6fe74ef9bf83224f3e2379fb9437d52de9917caf571c7795ac935b605"
+
+[[file]]
+path = "romfs/Data/sharedassets12.assets"
+size = 11392764
+sha256 = "273fd1d9f45b9441ce7e77c2735a5ba392be02f54fcd2ccb577ae4cff043444e"
+
+[[file]]
+path = "romfs/Data/sharedassets12.assets.resS"
+size = 72794496
+sha256 = "98453309045c2905f012e1d72ac96b3153093b30e1ced31975bf62aef7a233c7"
+
+[[file]]
+path = "romfs/Data/sharedassets12.resource"
+size = 926368
+sha256 = "4085b3cb4cd2ea7f3c60c559805d418bad73aef17ef9b9e20f600801c12d4a09"
+
+[[file]]
+path = "romfs/Data/sharedassets13.assets"
+size = 8675612
+sha256 = "8d07ebce5f0b9d085b675725131ee6455852161b8322a3b9c6bc822592f28f7a"
+
+[[file]]
+path = "romfs/Data/sharedassets13.assets.resS"
+size = 118448896
+sha256 = "b98a1f28a6835a7d0a4bf74632bfb9fc3f51e75693fd9460b02654c6e90b7047"
+
+[[file]]
+path = "romfs/Data/sharedassets13.resource"
+size = 1637248
+sha256 = "5ceed4a05a12e4fb410592193375775576779d45f63e3c5c9eef3102a8de3c7d"
+
+[[file]]
+path = "romfs/Data/sharedassets14.assets"
+size = 47354564
+sha256 = "9cfefa43ecb1494b376ba343e480fa58cb425c1a2da290d56b185e4aafba7ec5"
+
+[[file]]
+path = "romfs/Data/sharedassets14.assets.resS"
+size = 86736960
+sha256 = "842927e3ea24bc754f88147ab5561b58948e5c0ddbe5aa970c2f4288e5d07342"
+
+[[file]]
+path = "romfs/Data/sharedassets14.resource"
+size = 18322336
+sha256 = "aba255399780f9b00790256f8e15f4c725ca9fcf46ac17d98ce9160930c0c05d"
+
+[[file]]
+path = "romfs/Data/sharedassets15.assets"
+size = 4875240
+sha256 = "d9f621e52b2c96c15a465f3288892aba3db4b8a0cca9f51d9cf021ba6ca760d3"
+
+[[file]]
+path = "romfs/Data/sharedassets16.assets"
+size = 30592980
+sha256 = "f2026513291029403006afdaac59f7a7422dd82208a70ad694e9131f74f072dd"
+
+[[file]]
+path = "romfs/Data/sharedassets16.assets.resS"
+size = 168665456
+sha256 = "18ada741e76ab3ce98ec2be623e6bd95f74fbdc8ce85182be7c76d572d5c436d"
+
+[[file]]
+path = "romfs/Data/sharedassets16.resource"
+size = 16745024
+sha256 = "3363573e3b687148462f8878b9a8ca4438a37e03aeee494cc1f3ae875341035a"
+
+[[file]]
+path = "romfs/Data/sharedassets17.assets"
+size = 9337996
+sha256 = "21c28724236a0c2c723fbf5b0b725322399845c570141f348755a542410688d7"
+
+[[file]]
+path = "romfs/Data/sharedassets17.assets.resS"
+size = 89765424
+sha256 = "bbdb6f92fcab927bee4697fe7bbc69c5885d880667dc3628327aa25b267fefbe"
+
+[[file]]
+path = "romfs/Data/sharedassets17.resource"
+size = 4679264
+sha256 = "77b5d5cf3c1e256046b45a05090f760206385d2b79d0a67736519f2f048d9c71"
+
+[[file]]
+path = "romfs/Data/sharedassets18.assets"
+size = 53904364
+sha256 = "4b641df9a663bd825b894dc0295ee736440ea804042d2341b66dd06bfbfa3437"
+
+[[file]]
+path = "romfs/Data/sharedassets18.assets.resS"
+size = 118196704
+sha256 = "d3e71d7e2e763f7632b532d18bcee13beebc36379f280e70ac21f03224687138"
+
+[[file]]
+path = "romfs/Data/sharedassets18.resource"
+size = 749568
+sha256 = "3deb8184409e4b845b4eb17e3ffd017d6225dd2f35eb1e8bc32bb5d4323c2004"
+
+[[file]]
+path = "romfs/Data/sharedassets19.assets"
+size = 19507692
+sha256 = "f7216db61af530b58d6823f7aadd5968ec6aa74fbfda70443c7cac9d6f16b545"
+
+[[file]]
+path = "romfs/Data/sharedassets19.assets.resS"
+size = 11584352
+sha256 = "00bc0eddde00488fdd9abd0dccfb8af13d0756e8ad448a291de70b82ae9c5555"
+
+[[file]]
+path = "romfs/Data/sharedassets19.resource"
+size = 1711136
+sha256 = "f0f995b93d11874f62a70a996d949d03240ca6b8c9422425a691f4bf56769e19"
+
+[[file]]
+path = "romfs/Data/sharedassets2.assets"
+size = 162584172
+sha256 = "e24a99eb771699b43cae2315e4b807e41db00b9a75ac429629a7d517a08c048a"
+
+[[file]]
+path = "romfs/Data/sharedassets2.assets.resS"
+size = 254897744
+sha256 = "27e07ddf34a2b6849c6897b65c238c9c2a05da859f32c5683d587d2dd6da78ab"
+
+[[file]]
+path = "romfs/Data/sharedassets2.resource"
+size = 254327040
+sha256 = "565fd1cb64b3f7b0d2825d16dd4ee156e48406001f85049935c0418cfe36222a"
+
+[[file]]
+path = "romfs/Data/sharedassets20.assets"
+size = 9381580
+sha256 = "a956fe4fae90b3d32fa771ec395f117d310c786d1dd43d9c07355a226ce6fb53"
+
+[[file]]
+path = "romfs/Data/sharedassets20.assets.resS"
+size = 134109152
+sha256 = "68769735ae650c074d7a7bf8aed6ce6a059af8b564bf59c6237c0e155c7708ba"
+
+[[file]]
+path = "romfs/Data/sharedassets20.resource"
+size = 772992
+sha256 = "d7667f6f8b9d948c41b0faf0c4b88401faacd5515f38acd7c8c036f05e303f17"
+
+[[file]]
+path = "romfs/Data/sharedassets21.assets"
+size = 33097956
+sha256 = "910cdc18a090396c3378b4419f52fd60f292e987f4bc261c7c16400934951cb6"
+
+[[file]]
+path = "romfs/Data/sharedassets21.assets.resS"
+size = 240136800
+sha256 = "54375ae70e2d8233277b9c8ac39f650117f863707b0ea32240781e94f865ae1f"
+
+[[file]]
+path = "romfs/Data/sharedassets21.resource"
+size = 19656128
+sha256 = "073a9c63bbff7650fbc89fb96f956b31ffa909caff803a7de1c0aaa756b61366"
+
+[[file]]
+path = "romfs/Data/sharedassets22.assets"
+size = 56044964
+sha256 = "b32e4ae22e4952704c540d5efd1c58e881e2915ac1ee39fbbbeb9c06e19393fd"
+
+[[file]]
+path = "romfs/Data/sharedassets22.assets.resS"
+size = 31592032
+sha256 = "ecb2f9232d99bc2634712e38e4e835f8273eed8f8ecb107390490da1462aa3bf"
+
+[[file]]
+path = "romfs/Data/sharedassets22.resource"
+size = 22957696
+sha256 = "43469d77ca4ae1389ab80c57c683c96a0621b48324ae1e3d2135f06102745f4c"
+
+[[file]]
+path = "romfs/Data/sharedassets23.assets"
+size = 17272140
+sha256 = "186c7277c95f97185bec95c813484b3a6cfb524a465ac076338a50241a392a2f"
+
+[[file]]
+path = "romfs/Data/sharedassets23.assets.resS"
+size = 130144624
+sha256 = "ee2624a1dab867b53888f0a241d8530813ab4c9d4429b04bcb76a7409041fc8e"
+
+[[file]]
+path = "romfs/Data/sharedassets23.resource"
+size = 5691008
+sha256 = "79494b5e308d3045b7a8fe1c4a7a6c7abc4321b434b9dfcd052ac0d466e60857"
+
+[[file]]
+path = "romfs/Data/sharedassets24.assets"
+size = 10612436
+sha256 = "92620538fb87198810794d9a2319031468ebf0e0b4f259a304c3738087f14d4c"
+
+[[file]]
+path = "romfs/Data/sharedassets24.assets.resS"
+size = 159887552
+sha256 = "bb2a54c4ddab16238e41906d118ddcd3becbb745a80afb3ba3fb1cc19d564d0f"
+
+[[file]]
+path = "romfs/Data/sharedassets24.resource"
+size = 997856
+sha256 = "641502ee15da1fd49b61b7f76574477a56db25bcc9891e8524f441f8da06bdbf"
+
+[[file]]
+path = "romfs/Data/sharedassets25.assets"
+size = 29316076
+sha256 = "1eac4d33569d7161471cd51f139f705d57a00088e5dedc44e1eaa041c81e45a0"
+
+[[file]]
+path = "romfs/Data/sharedassets25.assets.resS"
+size = 82791312
+sha256 = "847b168a30f06b7886ad31bc0217d8561f71d0aff412e10c6dee4140ef57ccb7"
+
+[[file]]
+path = "romfs/Data/sharedassets25.resource"
+size = 16350336
+sha256 = "7bee401e0879d2d50d8047e92c0c6263ca986bb713d8e2210ac67618b5bf2c2b"
+
+[[file]]
+path = "romfs/Data/sharedassets26.assets"
+size = 7470708
+sha256 = "9c7b09a8a5e0b5b50dc6e7c3ac24cbaa7b806e3595d9c8756114d894ed5d5c3e"
+
+[[file]]
+path = "romfs/Data/sharedassets26.assets.resS"
+size = 68631456
+sha256 = "4ed140dd365ada5ea4ec72dad8265cf6c85e0e56e00b3fcc95a69bed3f2fd8ca"
+
+[[file]]
+path = "romfs/Data/sharedassets26.resource"
+size = 4568160
+sha256 = "c20013dbaa92dd7e6311665f47f886bfd9f2398305a2b7d3f34dcbe65ca24da9"
+
+[[file]]
+path = "romfs/Data/sharedassets27.assets"
+size = 15599100
+sha256 = "cd407feaf02879ce5b0f400b43f70865c052627f60fdd8f2cafcdf505b00d839"
+
+[[file]]
+path = "romfs/Data/sharedassets27.assets.resS"
+size = 113106784
+sha256 = "3f554f7abec8ca95177a54eddc28153414b28981314cd5ee1aab120834f06606"
+
+[[file]]
+path = "romfs/Data/sharedassets27.resource"
+size = 15070720
+sha256 = "8eca1c985a694e616e824cfb28bd140d4d98908ca3bf859cdc2ceec8b216f8fd"
+
+[[file]]
+path = "romfs/Data/sharedassets28.assets"
+size = 9513412
+sha256 = "439f4d3a164cacab848491d3eef8f08fe30bc204d580817a96df4684d5e9862b"
+
+[[file]]
+path = "romfs/Data/sharedassets28.assets.resS"
+size = 98775520
+sha256 = "995d27f726578715072f5493845a6d4094a313bba7ee900636d6ac4c54986069"
+
+[[file]]
+path = "romfs/Data/sharedassets28.resource"
+size = 6805696
+sha256 = "ec0a1489a453e9dafe9662843467557de46c171cec2f1ab5c7a3e205992acb9c"
+
+[[file]]
+path = "romfs/Data/sharedassets29.assets"
+size = 7746900
+sha256 = "e415b83cb70471ecc65e8779213b13d888b0b16e8e9c1f55dd258bde8b36076c"
+
+[[file]]
+path = "romfs/Data/sharedassets29.assets.resS"
+size = 29802080
+sha256 = "15ed1d886d64b04c6b2afac6d12c9785bff7d2058d9f5b2eb3c9b909322a58a8"
+
+[[file]]
+path = "romfs/Data/sharedassets29.resource"
+size = 3320032
+sha256 = "2ee2d1db4382d304c1f8dfb12d45d6d1f82088225438ef36e39be9089146915b"
+
+[[file]]
+path = "romfs/Data/sharedassets3.assets"
+size = 18818972
+sha256 = "82cddc129ec023de9b51c2df8c3a57c7496f7ce51a69a6cec61a02ffb045b2ee"
+
+[[file]]
+path = "romfs/Data/sharedassets3.assets.resS"
+size = 132890064
+sha256 = "8146b0a32c79fe158a3327f596b498423fb9f9758edaa530524fdab8cf6a967d"
+
+[[file]]
+path = "romfs/Data/sharedassets3.resource"
+size = 73215968
+sha256 = "52d9dbd44a107dd4bf859357dfc30d3e0daf5b917ef0019c27d95bb1fa3080ee"
+
+[[file]]
+path = "romfs/Data/sharedassets30.assets"
+size = 75549076
+sha256 = "57240e973acfdd8086618912485ecd5688b658b7a06899404fb8b36b658ce1f8"
+
+[[file]]
+path = "romfs/Data/sharedassets30.assets.resS"
+size = 61773712
+sha256 = "7b224c153baaf6e6f00f8e7f539fa55ce590c157312b54043629e683d9ccd4eb"
+
+[[file]]
+path = "romfs/Data/sharedassets30.resource"
+size = 14937280
+sha256 = "2b7ee0950ce494439eabafe59ab767e791054e0d20034dd59a075502cc132109"
+
+[[file]]
+path = "romfs/Data/sharedassets31.assets"
+size = 12351556
+sha256 = "1dbb4e6c83c590541ea06e788c053b23ac52222d9f30c2565f6a8d8e9d2f5b9f"
+
+[[file]]
+path = "romfs/Data/sharedassets31.assets.resS"
+size = 119810080
+sha256 = "da2e47e2510d7ada4521adfa03adcad0acdc844d80963ffee7e21b051e134255"
+
+[[file]]
+path = "romfs/Data/sharedassets31.resource"
+size = 4600864
+sha256 = "86902c66e9f61b8f77ce7568840b6d0977fabdfd14668272201fb644a8f87548"
+
+[[file]]
+path = "romfs/Data/sharedassets32.assets"
+size = 10548916
+sha256 = "3994782ffed77672011751bb0e118d8becfb262615a35640bd84836a4c466f12"
+
+[[file]]
+path = "romfs/Data/sharedassets32.assets.resS"
+size = 144707488
+sha256 = "06cae92cef020e1ecbab723cb147749c5234cd11dcc3dc92271dfac71d3e8d33"
+
+[[file]]
+path = "romfs/Data/sharedassets32.resource"
+size = 8045152
+sha256 = "26c69dd9e045dffe75aee8ca9bc83f801706912e51e084d1fc191f50dd2c4321"
+
+[[file]]
+path = "romfs/Data/sharedassets33.assets"
+size = 9434284
+sha256 = "00bc3b0d05032ed2cc832fb8bfb1be9d1ef2ff5cff1f4f0ec381fe3a8773d335"
+
+[[file]]
+path = "romfs/Data/sharedassets33.assets.resS"
+size = 156948944
+sha256 = "9e5af9112f996732930e589f6b257eba05ca31abb9ef1f2476c5ec3e7518f1cd"
+
+[[file]]
+path = "romfs/Data/sharedassets33.resource"
+size = 5365056
+sha256 = "45fb3fccf5e40ed475c56e0b2c5d40cb80bbdb736b46859d834b85e9dcec4f28"
+
+[[file]]
+path = "romfs/Data/sharedassets34.assets"
+size = 8180108
+sha256 = "ddb9f03884c02517740f19803e9fc653d4500e38ac8a2b28a9d16ece6d17f700"
+
+[[file]]
+path = "romfs/Data/sharedassets34.assets.resS"
+size = 82636096
+sha256 = "cfae1b5a2e499af81473c285e69ee4494208fd4d23cc6de750cf073d3dfd94b9"
+
+[[file]]
+path = "romfs/Data/sharedassets34.resource"
+size = 7768640
+sha256 = "0e580230e0583084aedf325a9709c70c021919764acb4ea78685f9acabe77654"
+
+[[file]]
+path = "romfs/Data/sharedassets35.assets"
+size = 11400252
+sha256 = "39628eb544488b7cb0b07e071a9ad5f9e92045c80d336edee64291104531b53a"
+
+[[file]]
+path = "romfs/Data/sharedassets35.assets.resS"
+size = 144809680
+sha256 = "f224dcee3847e199fc5242af2366c6c5b4723285fc84ed446f1139aceb7df3f5"
+
+[[file]]
+path = "romfs/Data/sharedassets35.resource"
+size = 2760576
+sha256 = "e09e95234436b778e7a4245c1a0b6f319cc09cc13853cbbbc4c80ea42c00bfe0"
+
+[[file]]
+path = "romfs/Data/sharedassets36.assets"
+size = 19277068
+sha256 = "d75277063557164fba81160635fbaa997a3e6dc00a613f5721ee393728f62a76"
+
+[[file]]
+path = "romfs/Data/sharedassets36.assets.resS"
+size = 86760160
+sha256 = "2e37f71d0b1dc2b9728231508f0cbf582f0cb47d72f8bd41fe6075ce1bd97a03"
+
+[[file]]
+path = "romfs/Data/sharedassets36.resource"
+size = 1165728
+sha256 = "e4f2a0071ce6c8ff7907b5a7dfec743577d9b211848d3e0a56c577e2f3c9e199"
+
+[[file]]
+path = "romfs/Data/sharedassets37.assets"
+size = 17122388
+sha256 = "6fdba2f4aa5ad6774118f9cffe47acca65767b8899f5f8797ae6ab8ee003f758"
+
+[[file]]
+path = "romfs/Data/sharedassets37.assets.resS"
+size = 101513696
+sha256 = "d3d66186ebbb30158a211b11c71bea50dc15a18afba61e92143fb026c3508ebf"
+
+[[file]]
+path = "romfs/Data/sharedassets37.resource"
+size = 6908640
+sha256 = "098f1cc161648c22a820c3369bcdc94650586bcb344e7f262bd7fd4477ba1519"
+
+[[file]]
+path = "romfs/Data/sharedassets38.assets"
+size = 19407036
+sha256 = "7689c3a89a7c6b51b25ab30f815d0174aff4ea8276f75d3229384dab5159e7c3"
+
+[[file]]
+path = "romfs/Data/sharedassets38.assets.resS"
+size = 225563984
+sha256 = "ef7fed0b60b28ea2f9f8ae2693c075d88a98861553aea095e00b7fd47afa3cdf"
+
+[[file]]
+path = "romfs/Data/sharedassets38.resource"
+size = 13266496
+sha256 = "bee96fdce3e984538c7a1f955579f93cd3bc0c0865f8b737bff2055407dbe61c"
+
+[[file]]
+path = "romfs/Data/sharedassets39.assets"
+size = 16081196
+sha256 = "d0109cfdf76732d50baa1613cf4dada40687c3e8b9c2a0d8cd23c000e8fd188c"
+
+[[file]]
+path = "romfs/Data/sharedassets39.assets.resS"
+size = 120849056
+sha256 = "aead3d7e49a6c4a27ca830920538d15280f0a19f1c4fbea4944de72e83b45114"
+
+[[file]]
+path = "romfs/Data/sharedassets39.resource"
+size = 6718912
+sha256 = "20152ccfa878862294c6b9e9b123bb6a0392a0e085c888151ef98ae5cc87d48a"
+
+[[file]]
+path = "romfs/Data/sharedassets4.assets"
+size = 265092
+sha256 = "9935b3db1de94ea9b6f7a5844291ff902650d2e8a20c3ad02a428ce92efc1a54"
+
+[[file]]
+path = "romfs/Data/sharedassets4.assets.resS"
+size = 19891568
+sha256 = "dd9f39946166d4452ae6d8598fb26c01292902590082eb432ee3edd4e84d862e"
+
+[[file]]
+path = "romfs/Data/sharedassets40.assets"
+size = 17551148
+sha256 = "34b9463fa7ae467188e33884f581cd41567a63902e8f1760888cd6c1f8b01912"
+
+[[file]]
+path = "romfs/Data/sharedassets40.assets.resS"
+size = 72075776
+sha256 = "732710e4e55df28090644007a1f8be6b560d9754fe8dd2d846c80135b728ca16"
+
+[[file]]
+path = "romfs/Data/sharedassets40.resource"
+size = 1171552
+sha256 = "0d0a4e44b78d4596f122b9afa2e8cf56e270801835dbf720db0a9c5f650b4bfe"
+
+[[file]]
+path = "romfs/Data/sharedassets41.assets"
+size = 31870932
+sha256 = "bb92791e4e4b468cd0ab1aae77576838a6ae93c62df559c748e0e86b7b4e09d1"
+
+[[file]]
+path = "romfs/Data/sharedassets41.assets.resS"
+size = 65402864
+sha256 = "5837922bac656a0b0b146654ae363904ecc7869cf69b1425ae82375ad97af57f"
+
+[[file]]
+path = "romfs/Data/sharedassets41.resource"
+size = 11224512
+sha256 = "d9859238f08045371f909af94282e8e5400b0789003f1a79822b1f19d2457e73"
+
+[[file]]
+path = "romfs/Data/sharedassets42.assets"
+size = 20119564
+sha256 = "3c406e079ceeffe3463502c1cc275c1ce408b907f1d7548c2830f03e757ff3a8"
+
+[[file]]
+path = "romfs/Data/sharedassets42.assets.resS"
+size = 148463680
+sha256 = "a54f28a51e5af4236b17f6110f4274d4dae7f84940f275a676095e0e85d37f41"
+
+[[file]]
+path = "romfs/Data/sharedassets42.resource"
+size = 2218368
+sha256 = "bb2b802690d1ab3a98b08f414bb3de424fd69a0413a5211322860abe5159077f"
+
+[[file]]
+path = "romfs/Data/sharedassets43.assets"
+size = 106989796
+sha256 = "f24924c329645d50797591dd1c8e55995b32889efa96d9f6ff3e99a1efa6399d"
+
+[[file]]
+path = "romfs/Data/sharedassets43.assets.resS"
+size = 131443264
+sha256 = "a96a5eb724ca44430fff9a80b2a78e5f21d9b72f69534b1199a7db7a41967c44"
+
+[[file]]
+path = "romfs/Data/sharedassets43.resource"
+size = 15198528
+sha256 = "604a224a616b34a5860f57782816feec0ecf4184a96f22ed279a0ad88ce7653a"
+
+[[file]]
+path = "romfs/Data/sharedassets44.assets"
+size = 7607340
+sha256 = "fff13b40b776caffa870cd3a9809ed5d8090031234fe929b254012511f46a3da"
+
+[[file]]
+path = "romfs/Data/sharedassets44.assets.resS"
+size = 104946288
+sha256 = "86218467a60424facdf26d069945d629730ab48cfd7f308babead649c4e4c728"
+
+[[file]]
+path = "romfs/Data/sharedassets44.resource"
+size = 6387552
+sha256 = "5374843c89d083ade3d4c48ff9041ef0e88f22d7f149e29110f5c51a644d130a"
+
+[[file]]
+path = "romfs/Data/sharedassets45.assets"
+size = 9130324
+sha256 = "0db8c1f0a7b31ac3f6a6b70dd8f844664bea3605b06f7b0dcce70017f7667c68"
+
+[[file]]
+path = "romfs/Data/sharedassets45.assets.resS"
+size = 96284176
+sha256 = "7f1c19acf463729246d6f79f6a35ec21ed3dd5bc4804e90a581918624c5663c8"
+
+[[file]]
+path = "romfs/Data/sharedassets45.resource"
+size = 2364512
+sha256 = "bf54a24490a72090ea4f8287ad70956661d182a9584b6ea0f4b11a55bc66df78"
+
+[[file]]
+path = "romfs/Data/sharedassets46.assets"
+size = 11461052
+sha256 = "91ed5a499e445a1fb4cec609175c4d920012bfffed274c188fecb099a37b9cba"
+
+[[file]]
+path = "romfs/Data/sharedassets46.assets.resS"
+size = 96239808
+sha256 = "8d789733d8b23a7af0fc33bd53f1bc706c868548127d6262feb3e0d4ab21768e"
+
+[[file]]
+path = "romfs/Data/sharedassets46.resource"
+size = 1433696
+sha256 = "2d736a2729e1582253fb7abab4ebbc8c33f1a2baf37ab0adc2a25e6b60aa1646"
+
+[[file]]
+path = "romfs/Data/sharedassets47.assets"
+size = 8440636
+sha256 = "68c4ac7404da4641298f9046a61c190679dda58b13b9a0719d248370fc3310f0"
+
+[[file]]
+path = "romfs/Data/sharedassets47.assets.resS"
+size = 123887296
+sha256 = "ab036018912395e843ed4b835cccfc888440031d9a0c32e84ac6f79c3ae62191"
+
+[[file]]
+path = "romfs/Data/sharedassets47.resource"
+size = 1208928
+sha256 = "379eaccb47959b6769c46225a2aaa5aa00f81019b98ccb36bc37ba86d439166b"
+
+[[file]]
+path = "romfs/Data/sharedassets48.assets"
+size = 8267892
+sha256 = "830e34b8d2ce9133638b298573b540d400b95661e461413e0a9eedee67e710fe"
+
+[[file]]
+path = "romfs/Data/sharedassets48.assets.resS"
+size = 140328336
+sha256 = "18e7c928cfa0868d1ea9e7d703d16714982afae57a7bb29926e0064bf9012dd3"
+
+[[file]]
+path = "romfs/Data/sharedassets48.resource"
+size = 314208
+sha256 = "af6373ef81159bb01481313533a702cd2107c12fd406ff9804c2f45fa1831dc5"
+
+[[file]]
+path = "romfs/Data/sharedassets49.assets"
+size = 7069900
+sha256 = "30de5cc6f84184feb1eb1274f3681ba416b71baf1e0d1392bedecfe642097289"
+
+[[file]]
+path = "romfs/Data/sharedassets49.assets.resS"
+size = 81191632
+sha256 = "a055c029914f1ca80135f52a5bd48d0717eba18d738ce450779b5ddc60428cb1"
+
+[[file]]
+path = "romfs/Data/sharedassets49.resource"
+size = 171392
+sha256 = "b2b3e42702027eb426a30bb1d63a2311c47a5ed0d7ef54ec4611c15f0a491717"
+
+[[file]]
+path = "romfs/Data/sharedassets5.assets"
+size = 2804192
+sha256 = "fb40e729f33e8be8ecf5b816860da88d9589382944dab0f6c0251852cba917bf"
+
+[[file]]
+path = "romfs/Data/sharedassets5.assets.resS"
+size = 3555152
+sha256 = "313585c5719a0ddeb1f17877aa32b4496ac3ebeab5169ccbae3aeea807795c42"
+
+[[file]]
+path = "romfs/Data/sharedassets50.assets"
+size = 5817324
+sha256 = "52bec83dc74333f03e45e0046c1a59977eb2fb4649cdf00e9d2bf53d6f740315"
+
+[[file]]
+path = "romfs/Data/sharedassets50.assets.resS"
+size = 59908576
+sha256 = "b8b1c47bddfdae3641992eb53b9b8519d9efa91b1042941c4a084ef2fb981d18"
+
+[[file]]
+path = "romfs/Data/sharedassets51.assets"
+size = 7115004
+sha256 = "09d011585e93c699dc6afab7336d912caa03fdcec1adcf155fa7c997ff12b1e4"
+
+[[file]]
+path = "romfs/Data/sharedassets51.assets.resS"
+size = 144865056
+sha256 = "550200c70a5f466012a7f707ec16d0e7e8283d8422a4e685a548f9ea56f4c2b5"
+
+[[file]]
+path = "romfs/Data/sharedassets51.resource"
+size = 3884096
+sha256 = "9d7150cdadd7f1eea0854beeb11f567a6edde6e0297f9c792e4945b1855ded60"
+
+[[file]]
+path = "romfs/Data/sharedassets52.assets"
+size = 154879908
+sha256 = "8e91baeef7a1d64c1e48db465b9584e20ae74923c9a281cced1cfd6d4b1adcbd"
+
+[[file]]
+path = "romfs/Data/sharedassets52.assets.resS"
+size = 144692592
+sha256 = "a9ee0f0c94b3a16f4e477df07e618ea84203ca1ed9dabf630695becc024bfa46"
+
+[[file]]
+path = "romfs/Data/sharedassets52.resource"
+size = 32948736
+sha256 = "3dfc2bd7c07ac84b7c8686f01c676f5d2835f54d67da89d7ecf8e73bb818a4f7"
+
+[[file]]
+path = "romfs/Data/sharedassets53.assets"
+size = 9653884
+sha256 = "dc6c937d0a41ed23a9ae552376a173d1273142de0ebdcae938d0e3f483218196"
+
+[[file]]
+path = "romfs/Data/sharedassets53.assets.resS"
+size = 146710464
+sha256 = "1e8d810f06668138c7b7729571a45a99326a32aba45b2b073b7e9688e2267c1d"
+
+[[file]]
+path = "romfs/Data/sharedassets53.resource"
+size = 2569920
+sha256 = "f5405120ca005dbd59f8aab2fe495d961f9545a9a2b687d6dd7e0a7f55cfc30e"
+
+[[file]]
+path = "romfs/Data/sharedassets54.assets"
+size = 20277492
+sha256 = "960aacba3474ba2aa8f87285723fb2a9b0f630aca9cc85642bde1b8e8ae5470f"
+
+[[file]]
+path = "romfs/Data/sharedassets54.assets.resS"
+size = 80263648
+sha256 = "8e66a64c4c0c0ad9671ada7940df3ddd947e6b3b0fe89672ab69af1bad41ced2"
+
+[[file]]
+path = "romfs/Data/sharedassets54.resource"
+size = 15734304
+sha256 = "8dad8a788fec0992abd33346160e9812bfba0578a37ed628691d5e6925a55cad"
+
+[[file]]
+path = "romfs/Data/sharedassets55.assets"
+size = 6990644
+sha256 = "74b16b1e552fae8f16b7c325dbd2ebe30866326b0601dbc29399dd14a6aee4ca"
+
+[[file]]
+path = "romfs/Data/sharedassets55.assets.resS"
+size = 53147936
+sha256 = "bdfaeface2546b39ebcf2d3278421be2fcd043954d7df0a4c7feff3c4e31c3aa"
+
+[[file]]
+path = "romfs/Data/sharedassets55.resource"
+size = 857088
+sha256 = "6b3914b4fb5f989f6f78f3497580d4980ddf2ac8a68c0fe24e3cbd9c784c6343"
+
+[[file]]
+path = "romfs/Data/sharedassets56.assets"
+size = 7026540
+sha256 = "8c76c794f99955e30ba0e462d107f6bf9e873e12299ee17332f09f60631ddb4c"
+
+[[file]]
+path = "romfs/Data/sharedassets56.assets.resS"
+size = 97290752
+sha256 = "4ec0b5c00ecaf8d200748f64f9831ed36c605e1a8e3001e269f51960e0e3a7f5"
+
+[[file]]
+path = "romfs/Data/sharedassets56.resource"
+size = 7480064
+sha256 = "c4823d3d10e981e0a59c23dd08a1e9f213b7b5aa23be432e5285a4ecc94c1842"
+
+[[file]]
+path = "romfs/Data/sharedassets57.assets"
+size = 18852908
+sha256 = "cf878c06efc00dd2d128bd342c8b91a89e3c9e0a6a834a4a3669958f97f91c5e"
+
+[[file]]
+path = "romfs/Data/sharedassets57.assets.resS"
+size = 73868224
+sha256 = "08ff6e423b1eec5972c88c02d1edf00bd03c9249318f75bb3842577eca919914"
+
+[[file]]
+path = "romfs/Data/sharedassets57.resource"
+size = 139424
+sha256 = "625846e1e6cc6163466a37858c008e68a3b6190cefeccbc108ad97117572bb15"
+
+[[file]]
+path = "romfs/Data/sharedassets58.assets"
+size = 8571212
+sha256 = "4d2caa11c75003972c45c2b1faeead53cde4437d1ae62eccb15290e3d74aad0e"
+
+[[file]]
+path = "romfs/Data/sharedassets58.assets.resS"
+size = 71053680
+sha256 = "6f936cc39aa25d8eb78872094f5c5d7d75af0e74ca52b1bc44ff895722e0e5e5"
+
+[[file]]
+path = "romfs/Data/sharedassets58.resource"
+size = 3115840
+sha256 = "b4532d10536b50fc6fcdce95fae2261d2acbd2e8e91a9c85527d22bc65ac7715"
+
+[[file]]
+path = "romfs/Data/sharedassets59.assets"
+size = 9960548
+sha256 = "4765be60d81a1ac7bcddca4a8912c503801ed2c5900500ae476fc9ccb5cd8871"
+
+[[file]]
+path = "romfs/Data/sharedassets59.assets.resS"
+size = 98853344
+sha256 = "412783d3f9afd26d8733c4bf9eff5d0152d02316e78b1dcb4deb13c36cca9f50"
+
+[[file]]
+path = "romfs/Data/sharedassets59.resource"
+size = 286848
+sha256 = "a2f27f511d177b6642fe2715150dd569b639df4491fc0fb51a3e60f1c47d0f4f"
+
+[[file]]
+path = "romfs/Data/sharedassets6.assets"
+size = 128108852
+sha256 = "21bc49836128bb98bde933ae2e69d3979fea6ad7941a5626c755210f35196866"
+
+[[file]]
+path = "romfs/Data/sharedassets6.assets.resS"
+size = 66017552
+sha256 = "7ff1232c1d880450e34e979528030f8316b81d19ba2e2916f212af9865be6a68"
+
+[[file]]
+path = "romfs/Data/sharedassets6.resource"
+size = 14546624
+sha256 = "c36a3bd3a08866a1735b21cb3a6276d287f2d15ab3e4d4f44ec8bbc83bbba45c"
+
+[[file]]
+path = "romfs/Data/sharedassets60.assets"
+size = 6352900
+sha256 = "f4836d7b29432524e749b2c82fbba92042c7002be7ce64289a9597774ba7577a"
+
+[[file]]
+path = "romfs/Data/sharedassets60.assets.resS"
+size = 123344224
+sha256 = "5adc11ed65ec766171fbba9e9bf309c119bea50d7b69d335ef2fb3addb3eb549"
+
+[[file]]
+path = "romfs/Data/sharedassets60.resource"
+size = 1694624
+sha256 = "9d1c02e1f310893a617550fd0bcbe174bfd30da768b3444a0cf5ba50dabaa4bd"
+
+[[file]]
+path = "romfs/Data/sharedassets61.assets"
+size = 60205268
+sha256 = "1081220f6ee8b86aeb6baf04fe3a20d51a776dafab309e59bb36b6754f2f284b"
+
+[[file]]
+path = "romfs/Data/sharedassets61.assets.resS"
+size = 65737680
+sha256 = "03b86710239e07c06b443a556c24929238d2f8e3689b4cd0f374f14fdbb95dff"
+
+[[file]]
+path = "romfs/Data/sharedassets61.resource"
+size = 20792736
+sha256 = "692ef4c46a948e7a8fa2914e2330b2d3535efab59af420730d3c690b36ecad84"
+
+[[file]]
+path = "romfs/Data/sharedassets62.assets"
+size = 16744124
+sha256 = "4620b72c2b4ce185d30b0ee26adc3b0e5487b6525ef61ce8e62cafc4fbc43307"
+
+[[file]]
+path = "romfs/Data/sharedassets62.assets.resS"
+size = 80284944
+sha256 = "507bd84b365fadeba274452257fec6b9ccebfb271c92d4c3a20d776bb6872a90"
+
+[[file]]
+path = "romfs/Data/sharedassets62.resource"
+size = 3709536
+sha256 = "ea3f7ede387a375886b308391a308e72ada6bf3273270d4951496685b16f53d1"
+
+[[file]]
+path = "romfs/Data/sharedassets63.assets"
+size = 8209236
+sha256 = "eab071de49bdd6fdc6ccd331f220ecd913e12df7339c9605bbeccee777a9180f"
+
+[[file]]
+path = "romfs/Data/sharedassets63.assets.resS"
+size = 116382704
+sha256 = "d5bbd93024f709d7e50a8f614a32f84d3d61fb255ea04d5319abfd1121e870af"
+
+[[file]]
+path = "romfs/Data/sharedassets63.resource"
+size = 2592224
+sha256 = "16a892a2c3cfdf5dac457bff205e623f847a6dbda545332510875e06f44b58bc"
+
+[[file]]
+path = "romfs/Data/sharedassets64.assets"
+size = 9040228
+sha256 = "b3d298f3fabedad4924abd687c555e60c28962e77805a6e0dabccab230b9d07a"
+
+[[file]]
+path = "romfs/Data/sharedassets64.assets.resS"
+size = 116865232
+sha256 = "0a9b43ea64a48d074d27d4d195fa16f3a4df19804ea1486d1992e7a7fd278a0b"
+
+[[file]]
+path = "romfs/Data/sharedassets64.resource"
+size = 1057344
+sha256 = "8b936394a7d40a0a92386a0a0c1cba37ee1a3329b73397bb70b9dc7f23d7d414"
+
+[[file]]
+path = "romfs/Data/sharedassets65.assets"
+size = 17797988
+sha256 = "3cd4eb4b16ec26528f7c8e2f9bbefa0edb5fa488ea420a852e3ff6378357b5f0"
+
+[[file]]
+path = "romfs/Data/sharedassets65.assets.resS"
+size = 97531024
+sha256 = "7fcb9307345073dfcebc64adacca16c2aa1c717c9c3cb89d0bf98ebdd58faf9a"
+
+[[file]]
+path = "romfs/Data/sharedassets65.resource"
+size = 12697184
+sha256 = "4e18b8144d735dd20b7f1a6fc056ffac07f8db940a5faf8e3161215719cc5656"
+
+[[file]]
+path = "romfs/Data/sharedassets66.assets"
+size = 8980172
+sha256 = "918f07428dba7c31e8b01bda74bc739c72dcf15d5c4b23b9e76b4f1d80f6d815"
+
+[[file]]
+path = "romfs/Data/sharedassets66.assets.resS"
+size = 115011040
+sha256 = "83912b1372bc71b98a9513992dd268e6994ed9fd30de972815859548ef397c2a"
+
+[[file]]
+path = "romfs/Data/sharedassets66.resource"
+size = 4771488
+sha256 = "b6b3b87ddcc7daf43192e32d2f5da88ee5b195bab959f576d1fb5c4045d6946c"
+
+[[file]]
+path = "romfs/Data/sharedassets67.assets"
+size = 5851548
+sha256 = "68fe93f29c7e2454e77e25851f6ffab8ee2de1f8e8f7760befbe072f7961edbd"
+
+[[file]]
+path = "romfs/Data/sharedassets67.assets.resS"
+size = 115086336
+sha256 = "0916d812334860a31cfd61c7b88fd6ede928445e45d74634e753c14bf0a9974a"
+
+[[file]]
+path = "romfs/Data/sharedassets67.resource"
+size = 25766848
+sha256 = "2d745134c81d4800eb4533baed6904a8dc6e3b1965dce872c4207fd79782fef7"
+
+[[file]]
+path = "romfs/Data/sharedassets68.assets"
+size = 6362572
+sha256 = "3a55875b451ee2047c0eda4664d8f3417f93d0f90d2daa7040be6b4aabf4951a"
+
+[[file]]
+path = "romfs/Data/sharedassets68.assets.resS"
+size = 120466944
+sha256 = "09da8a23077071bae6dd6048b4ee089ad64aea4179b15046b25579a0f79f26de"
+
+[[file]]
+path = "romfs/Data/sharedassets68.resource"
+size = 1108416
+sha256 = "b2e043cb5a7251fcb912264812e851734ea1fc5a23206d4698e8ad4b5a39cfc6"
+
+[[file]]
+path = "romfs/Data/sharedassets69.assets"
+size = 13889084
+sha256 = "605ece4f630017174e184ec2a742a882c3c6c171ac2d416421517368fe7b3fda"
+
+[[file]]
+path = "romfs/Data/sharedassets69.assets.resS"
+size = 57500032
+sha256 = "6208a0855edb8072eab1edfa8cb7d755c3cc1612b3ddd9fee19eb1c5380133f2"
+
+[[file]]
+path = "romfs/Data/sharedassets69.resource"
+size = 705056
+sha256 = "5a039a985d64cf7fa916cff8be6758e8751bfc6326a045b75d87d63a89803c4e"
+
+[[file]]
+path = "romfs/Data/sharedassets7.assets"
+size = 10635580
+sha256 = "264f2401f3538f59bd3cccc82c903fa309995a41c01416ce511c36b260498450"
+
+[[file]]
+path = "romfs/Data/sharedassets7.assets.resS"
+size = 42858448
+sha256 = "2007ff521c4f54d99e4984aede5e9aa378634b135f662a16e6c3dd65dffcd3bc"
+
+[[file]]
+path = "romfs/Data/sharedassets7.resource"
+size = 3103808
+sha256 = "e5477da39ad509f6e183798acaccdb4ee2ec8fa79b6ce1594ef91e1244ab5f95"
+
+[[file]]
+path = "romfs/Data/sharedassets70.assets"
+size = 215209252
+sha256 = "c417a08a3ef4a06dcafe8ed913a206639c19b0263577734fc7d98b2f5bbbf101"
+
+[[file]]
+path = "romfs/Data/sharedassets70.assets.resS"
+size = 45720064
+sha256 = "da6caa3b55fe16923b237a87b2594e7f3f7c842a7628a66f18dd3ea2f5c52cf3"
+
+[[file]]
+path = "romfs/Data/sharedassets70.resource"
+size = 16869696
+sha256 = "29881620f22609fe553dd5e4e9afcfe6fc2dca5ff7704f1645d0b9b8a8b5fb6e"
+
+[[file]]
+path = "romfs/Data/sharedassets71.assets"
+size = 11303916
+sha256 = "f9d444b73e6664b2d3802354aa2704c98b220ffdab9468bace28a502fabf0921"
+
+[[file]]
+path = "romfs/Data/sharedassets71.assets.resS"
+size = 225435392
+sha256 = "52ac689767623a379cb98494162e5bdd4c53e7983f67bef2f6d9b4aafa2d22a2"
+
+[[file]]
+path = "romfs/Data/sharedassets71.resource"
+size = 2298816
+sha256 = "8533af0d7cd67262bdfe42ce0239bf3581e8a176cd8b2bbc3f2739f0ad169da3"
+
+[[file]]
+path = "romfs/Data/sharedassets72.assets"
+size = 15153612
+sha256 = "95b317a4f5c8457162a581fc5ac9eed6f4cbd129fd6c6ecda0a508aa4b796d3f"
+
+[[file]]
+path = "romfs/Data/sharedassets72.assets.resS"
+size = 138408272
+sha256 = "7f3fe529518c939ea9e48639b4fd4c5e09d172157fd77e22e31a47bc748c1706"
+
+[[file]]
+path = "romfs/Data/sharedassets72.resource"
+size = 13551200
+sha256 = "d6b5eb0c4c76d74ff3e0969c32c09f1712c2e66c7eef8feea89e2b88b94e26cd"
+
+[[file]]
+path = "romfs/Data/sharedassets73.assets"
+size = 18797564
+sha256 = "f632fc0f9467af9f3476e39e56e22a86d5c799b162a3e0634d7f63ab5ea01d6c"
+
+[[file]]
+path = "romfs/Data/sharedassets73.assets.resS"
+size = 137285552
+sha256 = "534af8a2e4c61972696fd43c7109df60b4a787652023b8d10ce05431d39f416d"
+
+[[file]]
+path = "romfs/Data/sharedassets73.resource"
+size = 6733760
+sha256 = "9ad1b40cb623ea71f824fc7e9bb0fbce3574bea5d88bc7dda4fe91de476beab9"
+
+[[file]]
+path = "romfs/Data/sharedassets74.assets"
+size = 19877700
+sha256 = "0dd6e3f8aa25eeec5889406355565dae627fe76982c97e2a92525f7d0549acc7"
+
+[[file]]
+path = "romfs/Data/sharedassets74.assets.resS"
+size = 26653024
+sha256 = "11da0b406536aabdd7d69774573278e02dd257a8c4a44b33364272f19c7a62d4"
+
+[[file]]
+path = "romfs/Data/sharedassets74.resource"
+size = 8476256
+sha256 = "a4bfe232c47d1165de2d4c90c0799644206647f62496da9462ccb5e6bdef712e"
+
+[[file]]
+path = "romfs/Data/sharedassets75.assets"
+size = 11306676
+sha256 = "c7e3e60bc0a4a998be5b8202d6086988f72991eb679cdb683f3875ef480e8621"
+
+[[file]]
+path = "romfs/Data/sharedassets75.assets.resS"
+size = 117719552
+sha256 = "0ceb14dcf7ed683ef862a1f51322a582a5f870427a40baf8dd467443027bf9db"
+
+[[file]]
+path = "romfs/Data/sharedassets75.resource"
+size = 898944
+sha256 = "e3fdee3206706bc5d510a862856643fe4b8fb0a51ab158a15cce0133cee0833e"
+
+[[file]]
+path = "romfs/Data/sharedassets76.assets"
+size = 6912428
+sha256 = "139ed56cb320ba5bae946de9158292e2096414462f3038076be35c37db139eec"
+
+[[file]]
+path = "romfs/Data/sharedassets76.assets.resS"
+size = 94212624
+sha256 = "9ad7addc865e74f04200d0eecbf99545b03a59057f984b77dabaacd536c854c6"
+
+[[file]]
+path = "romfs/Data/sharedassets76.resource"
+size = 665344
+sha256 = "51a20b6450d1b8214c181b6f2ee4f60f5fa6404dc08c1e18bb1446280a0b8f60"
+
+[[file]]
+path = "romfs/Data/sharedassets77.assets"
+size = 6659044
+sha256 = "4af83d2e8659d222a2e36689252e2ecd789d5d3e826ce29619f71f48957c8d68"
+
+[[file]]
+path = "romfs/Data/sharedassets77.assets.resS"
+size = 67382016
+sha256 = "98dd6a5c3500a77dbf11c2368b5fe17116698666bfb749f83f3796c2061e7f5c"
+
+[[file]]
+path = "romfs/Data/sharedassets77.resource"
+size = 1126624
+sha256 = "4182b30ad67856e9bf3b858157c96cabf351e2d2f73a01b135b8bb6710b4777d"
+
+[[file]]
+path = "romfs/Data/sharedassets78.assets"
+size = 64373676
+sha256 = "17aa4bb20cbb4ae4fdb0e7ac225ae99020120ea520f7ce61590e8cd44dca2d84"
+
+[[file]]
+path = "romfs/Data/sharedassets78.assets.resS"
+size = 176712384
+sha256 = "9f361650799ac747110835457a61fbed1e9b0a0e87d429f1be969fcf9405406a"
+
+[[file]]
+path = "romfs/Data/sharedassets78.resource"
+size = 16840448
+sha256 = "7b5c1ae3e66f2dcf59174152e08de9860794b32fa055a2a1947bf943eb13dcf2"
+
+[[file]]
+path = "romfs/Data/sharedassets79.assets"
+size = 6252604
+sha256 = "972886c1d909a1774d072f2044354d849c139cb6aa6447f8d669e1ebfa666142"
+
+[[file]]
+path = "romfs/Data/sharedassets79.assets.resS"
+size = 122352192
+sha256 = "4dc05001b9e9495f7660b11023a6459710d970d9da406c5515ee01ac4d98354b"
+
+[[file]]
+path = "romfs/Data/sharedassets8.assets"
+size = 9695420
+sha256 = "f34c13f9ce447bda7f4235ba1474f4561ecd9dabc930d8e92293b4bbc3dbc86f"
+
+[[file]]
+path = "romfs/Data/sharedassets8.assets.resS"
+size = 100265088
+sha256 = "f6d575b927cdd05cdf22a2fddd66abe5dfabba61375ddf834d7c19acee5c88f1"
+
+[[file]]
+path = "romfs/Data/sharedassets8.resource"
+size = 2177984
+sha256 = "f00662b3257629806145ade7723019687e0a481be5f8ed83cdd79206533dfd98"
+
+[[file]]
+path = "romfs/Data/sharedassets80.assets"
+size = 5522492
+sha256 = "f716107c05da54903e758728ed1624f489a4de17bf9ee18b5b592c27bed6f35a"
+
+[[file]]
+path = "romfs/Data/sharedassets80.assets.resS"
+size = 115382752
+sha256 = "d4d19dda740e0fff0ad692a44d03c3440751061cd0034f329c1250c204ea96ca"
+
+[[file]]
+path = "romfs/Data/sharedassets81.assets"
+size = 9272820
+sha256 = "0bf5e90dc2684529f2669b6b385c5f54b36fc678b7ac254097729d4e9f009e78"
+
+[[file]]
+path = "romfs/Data/sharedassets81.assets.resS"
+size = 98539744
+sha256 = "e7e044a45bcc25cf72440456e91ca5f3fb0ab525fb87b9f8856ba8a55eaf0ab9"
+
+[[file]]
+path = "romfs/Data/sharedassets82.assets"
+size = 14327876
+sha256 = "fc832f812e2de6ba6097bc86116eab88112201f0652d8cec3e13ca7823e3670f"
+
+[[file]]
+path = "romfs/Data/sharedassets82.assets.resS"
+size = 124459776
+sha256 = "8c1e99f83518923e9d148c8c1f00ad4d37afe83dca22c2b41adf1a9b5cc6c908"
+
+[[file]]
+path = "romfs/Data/sharedassets83.assets"
+size = 5279780
+sha256 = "7c2999781c77477e8823e77e586260ffca2345b8377453266b9257bc3b1a98da"
+
+[[file]]
+path = "romfs/Data/sharedassets83.assets.resS"
+size = 65435200
+sha256 = "d0cd74dd90e57acf403b0e61320f4774d73bf2a49b710f5a6d9a287b33e65daf"
+
+[[file]]
+path = "romfs/Data/sharedassets84.assets"
+size = 5563084
+sha256 = "50426fbfc41fae6b1367af98cda4db98d0a57d04b469a7bb3409f6de1aa565c1"
+
+[[file]]
+path = "romfs/Data/sharedassets84.assets.resS"
+size = 114395648
+sha256 = "3ff54277d90baaab33ca815d9528ef327f016511a5cd32ff20b215cb94325481"
+
+[[file]]
+path = "romfs/Data/sharedassets85.assets"
+size = 9665772
+sha256 = "2926b738302223e8e47fb2629a46a107feea8199f42e7454be28e60b174a01a9"
+
+[[file]]
+path = "romfs/Data/sharedassets85.assets.resS"
+size = 150758848
+sha256 = "6585ecdd880a940b462a1ea9b9e7c5e59c33d18711b7c1f6a50b4ad10d8d21f8"
+
+[[file]]
+path = "romfs/Data/sharedassets86.assets"
+size = 10658412
+sha256 = "d326cc4677fdcc6162ec206e0ebc7bae890820f247359f6ffad57edded83eb2a"
+
+[[file]]
+path = "romfs/Data/sharedassets86.assets.resS"
+size = 147276704
+sha256 = "84cae822046df0ec432a2f8af8bfe5abae90bdd0386e0b3830349e6eae3df409"
+
+[[file]]
+path = "romfs/Data/sharedassets9.assets"
+size = 8536916
+sha256 = "eede4a142dfb44aec61811d583079bccf5b08d16580911396700644a2ec41755"
+
+[[file]]
+path = "romfs/Data/sharedassets9.assets.resS"
+size = 96385376
+sha256 = "be73865a527e9cb9648e593b798cd4ba18f376318562b88bbab1f2ac8c519b80"
+
+[[file]]
+path = "romfs/Data/sharedassets9.resource"
+size = 1213568
+sha256 = "a0f6b064c86402906f571de030cfc5c1c96b40100ae20497f0425097ffdc007a"
