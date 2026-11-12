@@ -52,7 +52,7 @@ Other regions usually ship the same files on Switch; the launcher checks your co
 Updates install themselves and rebuild only what changed. Using an AI agent? Give it
 [AGENT-INSTALL.md](AGENT-INSTALL.md). Full details: [docs/INSTALL.md](docs/INSTALL.md).
 
-## Status — version 1.0.2
+## Status — version 1.0.3
 
 | | Returns HD | Tropical Freeze |
 |---|---|---|

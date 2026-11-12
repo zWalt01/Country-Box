@@ -4,158 +4,394 @@
   "name": "Country-Box",
   "repo": "zWalt01/Country-Box",
   "min": "0.90.0-beta.36",
-  "inputs": [
-    {
-      "id": "dkcrhd",
-      "label": "Your extracted copy of Donkey Kong Country Returns HD (Switch, US, version 1.0.0): the folder with exefs/ and romfs/.",
-      "role": "game",
-      "optional": true,
-      "formats": [{ "type": "folder" }]
-    },
-    {
-      "id": "dkctf",
-      "label": "Your extracted copy of Donkey Kong Country: Tropical Freeze (Switch, US, version 1.0.0): the folder with exefs/ and romfs/.",
-      "role": "game",
-      "optional": true,
-      "formats": [{ "type": "folder" }]
+  "game": {
+    "kind": "folder",
+    "label": "Your extracted copy of Donkey Kong Country Returns HD or Tropical Freeze (Switch, US, version 1.0.0): the folder with exefs/ and romfs/. To add the other game later, pick its folder here and it is set up too.",
+    "check": {
+      "file": "exefs/main.npdm"
     }
-  ],
+  },
   "games": [
     {
       "id": "dkcrhd",
       "name": "Donkey Kong Country Returns HD",
-      "args": ["--play", "dkcrhd"],
-      "inputs": ["dkcrhd"],
-      "saves": ["{local}/country-box/games/dkcrhd/profile", "{local}/country-box/games/dkcrhd/mp4.ini"]
+      "args": [
+        "--play",
+        "dkcrhd"
+      ],
+      "saves": [
+        "{local}/country-box/games/dkcrhd/profile",
+        "{local}/country-box/games/dkcrhd/mp4.ini"
+      ]
     },
     {
       "id": "dkctf",
       "name": "Donkey Kong Country: Tropical Freeze",
-      "args": ["--play", "dkctf"],
-      "inputs": ["dkctf"],
-      "saves": ["{local}/country-box/games/dkctf/profile", "{local}/country-box/games/dkctf/mp4.ini"]
+      "args": [
+        "--play",
+        "dkctf"
+      ],
+      "saves": [
+        "{local}/country-box/games/dkctf/profile",
+        "{local}/country-box/games/dkctf/mp4.ini"
+      ]
     }
   ],
   "start": {
-    "program": ["AppRun", "usr/bin/country-box-launcher"],
+    "program": [
+      "AppRun",
+      "usr/bin/country-box-launcher"
+    ],
     "args": []
   },
   "prepare": {
-    "program": ["AppRun", "usr/bin/country-box-launcher"],
-    "args": ["--setup", "dkcrhd={input:dkcrhd}", "dkctf={input:dkctf}"],
+    "program": [
+      "AppRun",
+      "usr/bin/country-box-launcher"
+    ],
+    "args": [
+      "--setup",
+      "auto={game}"
+    ],
     "label": "Building the game from your copy, once: about 3 minutes for Tropical Freeze and 10 for Returns HD on an 8-core PC, longer on a Steam Deck",
     "timeout": 10800
   },
   "config": [
-    { "id": "dkcrhd", "format": "ini", "file": [{ "path": "{local}/country-box/games/dkcrhd/mp4.ini" }] },
-    { "id": "dkctf", "format": "ini", "file": [{ "path": "{local}/country-box/games/dkctf/mp4.ini" }] }
+    {
+      "id": "dkcrhd",
+      "format": "ini",
+      "file": [
+        {
+          "path": "{local}/country-box/games/dkcrhd/mp4.ini"
+        }
+      ]
+    },
+    {
+      "id": "dkctf",
+      "format": "ini",
+      "file": [
+        {
+          "path": "{local}/country-box/games/dkctf/mp4.ini"
+        }
+      ]
+    }
   ],
-  "groups": [{ "id": "Returns HD" }, { "id": "Tropical Freeze" }],
+  "groups": [
+    {
+      "id": "Returns HD"
+    },
+    {
+      "id": "Tropical Freeze"
+    }
+  ],
   "settings": [
     {
-      "id": "rhd_window", "label": "Window", "group": "Returns HD", "in": "dkcrhd",
+      "id": "rhd_window",
+      "label": "Window",
+      "group": "Returns HD",
+      "in": "dkcrhd",
       "help": "Full screen, or a window on the desktop.",
       "choices": [
-        { "label": "Window", "set": { "fullscreen": "0" } },
-        { "label": "Full screen", "set": { "fullscreen": "1" } }
+        {
+          "label": "Window",
+          "set": {
+            "fullscreen": "0"
+          }
+        },
+        {
+          "label": "Full screen",
+          "set": {
+            "fullscreen": "1"
+          }
+        }
       ],
-      "defaults": { "fullscreen": "0" }
+      "defaults": {
+        "fullscreen": "0"
+      }
     },
     {
-      "id": "rhd_fps", "label": "Frame rate", "group": "Returns HD", "in": "dkcrhd",
+      "id": "rhd_fps",
+      "label": "Frame rate",
+      "group": "Returns HD",
+      "in": "dkcrhd",
       "help": "60 is the Switch's own rate. Your screen's rate is experimental above 60.",
       "choices": [
-        { "label": "60 (as on Switch)", "set": { "fps_limit": "60" } },
-        { "label": "Your screen's rate", "set": { "fps_limit": "display" } }
+        {
+          "label": "60 (as on Switch)",
+          "set": {
+            "fps_limit": "60"
+          }
+        },
+        {
+          "label": "Your screen's rate",
+          "set": {
+            "fps_limit": "display"
+          }
+        }
       ],
-      "defaults": { "fps_limit": "60" }
+      "defaults": {
+        "fps_limit": "60"
+      }
     },
     {
-      "id": "rhd_present", "label": "V-Sync", "group": "Returns HD", "in": "dkcrhd",
+      "id": "rhd_present",
+      "label": "V-Sync",
+      "group": "Returns HD",
+      "in": "dkcrhd",
       "help": "Mailbox is smooth without tearing. V-Sync waits for the screen. Off shows each frame at once and may tear.",
       "choices": [
-        { "label": "Mailbox", "set": { "vk_present": "mailbox" } },
-        { "label": "V-Sync", "set": { "vk_present": "fifo" } },
-        { "label": "Off", "set": { "vk_present": "immediate" } }
+        {
+          "label": "Mailbox",
+          "set": {
+            "vk_present": "mailbox"
+          }
+        },
+        {
+          "label": "V-Sync",
+          "set": {
+            "vk_present": "fifo"
+          }
+        },
+        {
+          "label": "Off",
+          "set": {
+            "vk_present": "immediate"
+          }
+        }
       ],
-      "defaults": { "vk_present": "mailbox" }
+      "defaults": {
+        "vk_present": "mailbox"
+      }
     },
     {
-      "id": "rhd_aniso", "label": "Texture filtering", "group": "Returns HD", "in": "dkcrhd",
+      "id": "rhd_aniso",
+      "label": "Texture filtering",
+      "group": "Returns HD",
+      "in": "dkcrhd",
       "help": "Keeps textures sharp at shallow angles. Game's own keeps the original filters.",
       "choices": [
-        { "label": "Game's own", "set": { "anisotropy": "game" } },
-        { "label": "4x", "set": { "anisotropy": "4" } },
-        { "label": "8x", "set": { "anisotropy": "8" } },
-        { "label": "16x", "set": { "anisotropy": "16" } }
+        {
+          "label": "Game's own",
+          "set": {
+            "anisotropy": "game"
+          }
+        },
+        {
+          "label": "4x",
+          "set": {
+            "anisotropy": "4"
+          }
+        },
+        {
+          "label": "8x",
+          "set": {
+            "anisotropy": "8"
+          }
+        },
+        {
+          "label": "16x",
+          "set": {
+            "anisotropy": "16"
+          }
+        }
       ],
-      "defaults": { "anisotropy": "game" }
+      "defaults": {
+        "anisotropy": "game"
+      }
     },
     {
-      "id": "rhd_pad", "label": "Button prompts", "group": "Returns HD", "in": "dkcrhd",
+      "id": "rhd_pad",
+      "label": "Button prompts",
+      "group": "Returns HD",
+      "in": "dkcrhd",
       "help": "Automatic follows the controller you use.",
       "choices": [
-        { "label": "Automatic", "set": { "pad_layout": "auto" } },
-        { "label": "Xbox", "set": { "pad_layout": "xbox" } },
-        { "label": "Nintendo", "set": { "pad_layout": "nintendo" } }
+        {
+          "label": "Automatic",
+          "set": {
+            "pad_layout": "auto"
+          }
+        },
+        {
+          "label": "Xbox",
+          "set": {
+            "pad_layout": "xbox"
+          }
+        },
+        {
+          "label": "Nintendo",
+          "set": {
+            "pad_layout": "nintendo"
+          }
+        }
       ],
-      "defaults": { "pad_layout": "auto" }
+      "defaults": {
+        "pad_layout": "auto"
+      }
     },
     {
-      "id": "tf_window", "label": "Window", "group": "Tropical Freeze", "in": "dkctf",
+      "id": "tf_window",
+      "label": "Window",
+      "group": "Tropical Freeze",
+      "in": "dkctf",
       "help": "Full screen, or a window on the desktop.",
       "choices": [
-        { "label": "Window", "set": { "fullscreen": "0" } },
-        { "label": "Full screen", "set": { "fullscreen": "1" } }
+        {
+          "label": "Window",
+          "set": {
+            "fullscreen": "0"
+          }
+        },
+        {
+          "label": "Full screen",
+          "set": {
+            "fullscreen": "1"
+          }
+        }
       ],
-      "defaults": { "fullscreen": "0" }
+      "defaults": {
+        "fullscreen": "0"
+      }
     },
     {
-      "id": "tf_fps", "label": "Frame rate", "group": "Tropical Freeze", "in": "dkctf",
+      "id": "tf_fps",
+      "label": "Frame rate",
+      "group": "Tropical Freeze",
+      "in": "dkctf",
       "help": "60 is the Switch's own rate. Your screen's rate is experimental above 60.",
       "choices": [
-        { "label": "60 (as on Switch)", "set": { "fps_limit": "60" } },
-        { "label": "Your screen's rate", "set": { "fps_limit": "display" } }
+        {
+          "label": "60 (as on Switch)",
+          "set": {
+            "fps_limit": "60"
+          }
+        },
+        {
+          "label": "Your screen's rate",
+          "set": {
+            "fps_limit": "display"
+          }
+        }
       ],
-      "defaults": { "fps_limit": "60" }
+      "defaults": {
+        "fps_limit": "60"
+      }
     },
     {
-      "id": "tf_present", "label": "V-Sync", "group": "Tropical Freeze", "in": "dkctf",
+      "id": "tf_present",
+      "label": "V-Sync",
+      "group": "Tropical Freeze",
+      "in": "dkctf",
       "help": "Mailbox is smooth without tearing. V-Sync waits for the screen. Off shows each frame at once and may tear.",
       "choices": [
-        { "label": "Mailbox", "set": { "vk_present": "mailbox" } },
-        { "label": "V-Sync", "set": { "vk_present": "fifo" } },
-        { "label": "Off", "set": { "vk_present": "immediate" } }
+        {
+          "label": "Mailbox",
+          "set": {
+            "vk_present": "mailbox"
+          }
+        },
+        {
+          "label": "V-Sync",
+          "set": {
+            "vk_present": "fifo"
+          }
+        },
+        {
+          "label": "Off",
+          "set": {
+            "vk_present": "immediate"
+          }
+        }
       ],
-      "defaults": { "vk_present": "mailbox" }
+      "defaults": {
+        "vk_present": "mailbox"
+      }
     },
     {
-      "id": "tf_aniso", "label": "Texture filtering", "group": "Tropical Freeze", "in": "dkctf",
+      "id": "tf_aniso",
+      "label": "Texture filtering",
+      "group": "Tropical Freeze",
+      "in": "dkctf",
       "help": "Keeps textures sharp at shallow angles. Game's own keeps the original filters.",
       "choices": [
-        { "label": "Game's own", "set": { "anisotropy": "game" } },
-        { "label": "4x", "set": { "anisotropy": "4" } },
-        { "label": "8x", "set": { "anisotropy": "8" } },
-        { "label": "16x", "set": { "anisotropy": "16" } }
+        {
+          "label": "Game's own",
+          "set": {
+            "anisotropy": "game"
+          }
+        },
+        {
+          "label": "4x",
+          "set": {
+            "anisotropy": "4"
+          }
+        },
+        {
+          "label": "8x",
+          "set": {
+            "anisotropy": "8"
+          }
+        },
+        {
+          "label": "16x",
+          "set": {
+            "anisotropy": "16"
+          }
+        }
       ],
-      "defaults": { "anisotropy": "game" }
+      "defaults": {
+        "anisotropy": "game"
+      }
     },
     {
-      "id": "tf_pad", "label": "Button prompts", "group": "Tropical Freeze", "in": "dkctf",
+      "id": "tf_pad",
+      "label": "Button prompts",
+      "group": "Tropical Freeze",
+      "in": "dkctf",
       "help": "Automatic follows the controller you use.",
       "choices": [
-        { "label": "Automatic", "set": { "pad_layout": "auto" } },
-        { "label": "Xbox", "set": { "pad_layout": "xbox" } },
-        { "label": "Nintendo", "set": { "pad_layout": "nintendo" } }
+        {
+          "label": "Automatic",
+          "set": {
+            "pad_layout": "auto"
+          }
+        },
+        {
+          "label": "Xbox",
+          "set": {
+            "pad_layout": "xbox"
+          }
+        },
+        {
+          "label": "Nintendo",
+          "set": {
+            "pad_layout": "nintendo"
+          }
+        }
       ],
-      "defaults": { "pad_layout": "auto" }
+      "defaults": {
+        "pad_layout": "auto"
+      }
     }
   ],
   "folders": {
-    "saves": [{ "path": "{local}/country-box/games" }],
-    "logs": [{ "path": "{local}/country-box/logs" }]
+    "saves": [
+      {
+        "path": "{local}/country-box/games"
+      }
+    ],
+    "logs": [
+      {
+        "path": "{local}/country-box/logs"
+      }
+    ]
   },
   "actions": [
-    { "id": "logs", "label": "Logs", "help": "The logs of each Prepare and each time you played.", "open": "logs" }
+    {
+      "id": "logs",
+      "label": "Logs",
+      "help": "The logs of each Prepare and each time you played.",
+      "open": "logs"
+    }
   ]
 }

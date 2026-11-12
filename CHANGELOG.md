@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.3 — 2026-11-12
+
+- RecompLauncher's Easy Setup: you pick the folder of either game and the launcher tells which one it is
+  (`country-box-launcher --setup auto=FOLDER`). To add the other game, pick its folder too; both stay set up.
+
 ## 1.0.2 — 2026-11-12
 
 - RecompLauncher support: the AppImage carries `recomplauncher.json`, so [RecompLauncher](https://recomplauncher.com)

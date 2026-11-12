@@ -53,7 +53,7 @@ static void usage() {
             "usage: country-box-launcher [--home DIR] [--size WxH | --fullscreen] [--shot-dir DIR --auto STEPS]\n"
             "       country-box-launcher [--home DIR] --status | --verify GAME FOLDER [--quick] | --add GAME FOLDER |\n"
             "                            --set-build GAME DIR | --prepare GAME [--shaders] | --import-build GAME PATH |\n"
-            "                            --play GAME | --check-update | --update | --setup GAME=FOLDER...\n"
+            "                            --play GAME | --check-update | --update | --setup GAME=FOLDER... (GAME: dkcrhd, dkctf or auto)\n"
             "games: dkcrhd (Returns HD), dkctf (Tropical Freeze)\n"
             "update channel: CB_UPDATE_API or <home>/update.ini api_url (default: this project's GitHub Releases)\n");
 }
@@ -244,7 +244,7 @@ static int run_hub(Library &lib, int w, int h, bool fullscreen, const std::strin
     return 0;
 }
 
-// --setup GAME=FOLDER...: check each copy, keep it in the library and prepare it, without a window. For launchers
+// --setup GAME=FOLDER... (GAME may be "auto": the copy says which game it is): check each copy, keep it in the library and prepare it, without a window. For launchers
 // such as RecompLauncher (recomplauncher.json, "prepare"). GAME= with no folder is skipped (a game the player does
 // not have). stdout carries only "progress <0..1> <text>" lines, the
 // errors go to stderr. Exit 0 ready; 2 usage; 4 a copy was refused (wrong game, version or files); 1 Prepare failed.
@@ -254,6 +254,16 @@ static int run_setup(Library &lib, const std::vector<std::string> &args) {
     for (auto &a : args) {
         size_t eq = a.find('=');
         Game *g = eq == std::string::npos ? nullptr : lib.find(a.substr(0, eq));
+        if (eq != std::string::npos && a.compare(0, eq, "auto") == 0 && eq + 1 < a.size()) {
+            // auto=FOLDER: the game is the one the copy's title id names (main.npdm), as the hub's Add tells them apart
+            const std::string &first = lib.games().front().id;
+            VerifyResult q = verify_copy(first, a.substr(eq + 1), false);
+            g = q.kind == VerifyResult::Ok ? lib.find(first) : q.kind == VerifyResult::OtherGame ? lib.find(q.other_game) : nullptr;
+            if (!g) {
+                fprintf(stderr, "launcher: %s %s %s\n", q.headline.c_str(), q.explain.c_str(), q.hint.c_str());
+                return 4;
+            }
+        }
         // a game the player did not give: an empty folder, or a launcher placeholder left as written ({input:...})
         if (g && (eq + 1 >= a.size() || a.compare(eq + 1, 7, "{input:") == 0)) continue;
         if (!g) {

@@ -54,7 +54,7 @@ En Switch, las otras regiones suelen traer los mismos archivos; el launcher revi
 Las actualizaciones se instalan solas y sólo recompilan lo que cambió. ¿Usas un agente de IA? Dale
 [AGENT-INSTALL.md](../AGENT-INSTALL.md). Todos los detalles: [INSTALL.md](INSTALL.md).
 
-## Estado — versión 1.0.2
+## Estado — versión 1.0.3
 
 | | Returns HD | Tropical Freeze |
 |---|---|---|
