@@ -311,7 +311,10 @@ UpdateInfo update_check(const std::string &home, std::string *err_out) {
     for (size_t k = 0; k < j["assets"].size(); k++) {
         const Json &a = j["assets"][k];
         std::string n = a["name"].s();
-        if (n == "SHA256SUMS" || n.find("country-box-launcher") == std::string::npos) continue;
+        // Run from an AppImage ($APPIMAGE): the package is the release's .AppImage, which replaces that file.
+        bool want_appimage = getenv("APPIMAGE") && *getenv("APPIMAGE");
+        bool is_appimage = n.size() > 9 && n.compare(n.size() - 9, 9, ".AppImage") == 0;
+        if (n == "SHA256SUMS" || (want_appimage ? !is_appimage : n.find("country-box-launcher") == std::string::npos)) continue;
         asset = &a;
         break;
     }
@@ -467,8 +470,33 @@ void UpdateJob::run() {
         return fail(m + "; nothing was installed");
     }
 
-    // 4. Install: <home>/app/<version>, then swap the app/current symlink in one rename.
+    // 4a. AppImage: the verified download replaces the AppImage the player runs, in one rename in its folder; the
+    // previous one stays next to it as <name>.old (the rollback).
     phase.store(Install);
+    if (const char *ai = getenv("APPIMAGE"); ai && *ai) {
+        std::string target = ai, fresh = target + ".new", old_copy = target + ".old";
+        from_version = launcher_version();
+        fs::remove(fresh, ec);
+        fs::copy_file(part, fresh, fs::copy_options::overwrite_existing, ec);
+        if (ec) return fail("the new AppImage could not be written next to " + target + ": " + ec.message());
+        fs::permissions(fresh, fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec |
+                                   fs::perms::others_read | fs::perms::others_exec, ec);
+        fsync_path(fresh);
+        fs::remove(old_copy, ec);
+        if (::link(target.c_str(), old_copy.c_str()) != 0) fs::copy_file(target, old_copy, ec);
+        if (::rename(fresh.c_str(), target.c_str()) != 0) {
+            fs::remove(fresh, ec);
+            return fail("the new AppImage could not replace " + target);
+        }
+        ::remove(part.c_str());
+        installed_dir = target;
+        to_version = info_.version;
+        for (auto &gb : game_builds_)
+            if (access((gb.second + "/country-box").c_str(), X_OK) == 0) need_prepare.push_back(gb.first);
+        return finish_ok();
+    }
+
+    // 4. Install: <home>/app/<version>, then swap the app/current symlink in one rename.
     std::string app = update_ensure_dir(home_, "app", &err);
     if (app.empty()) return fail(err);
     {

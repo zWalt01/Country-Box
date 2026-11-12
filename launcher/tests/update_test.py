@@ -103,6 +103,9 @@ def fill_sums(rel):
     return rel
 
 
+VERSION = (Path(__file__).resolve().parents[2] / 'VERSION').read_text().strip()   # the launcher's own version
+
+
 def make_home(tmp, case, current_version='0.1.0'):
     """A home with a previous install and one game that has saves (profile/, mp4.ini) and a build."""
     home = tmp / ('home-' + case)
@@ -151,8 +154,8 @@ def main():
         set_urls(FakeReleases.release, port)
         FakeReleases.asset, FakeReleases.serve = pkg, 'whole'
         code, r = run(exe, home, url, '--check-update')
-        check(code == 0 and r and r['ok'] and r['available'] and r['latest'] == '9.9.9' and r['current'] == '0.1.0',
-              'the check finds 9.9.9 over 0.1.0')
+        check(code == 0 and r and r['ok'] and r['available'] and r['latest'] == '9.9.9' and r['current'] == VERSION,
+              f'the check finds 9.9.9 over {VERSION}')
         check(r and r['asset'] and r['asset']['sha256'] == pkg_hash and r['asset']['sha256_from'] == 'release digest',
               'the package hash comes from the release digest')
         check(r and (r.get('notes') or '').startswith('- Fixed'), 'the notes come along')

@@ -6,7 +6,7 @@
 built on your machine from your own copy.**
 
 [Español](docs/README.es.md) · [About](ABOUT.md) · [Install](docs/INSTALL.md) · [Install with an AI agent](AGENT-INSTALL.md) ·
-[How it was tested](docs/TESTING.md) · [Known issues](docs/KNOWN-ISSUES.md)
+[How it was tested](docs/TESTING.md) · [Known issues](docs/KNOWN-ISSUES.md) · [Changelog](CHANGELOG.md)
 
 ![The Country-Box launcher](docs/images/launcher.webp)
 
@@ -25,7 +25,7 @@ its graphics through Vulkan. The result is a native Linux executable.
 > launcher checks it file by file, builds the game for your computer and runs it. Nothing here extracts or decrypts
 > anything, and this project never says where to obtain a game.
 
-## Status — version 1.0.0
+## Status — version 1.0.1
 
 | | Donkey Kong Country Returns HD | Donkey Kong Country: Tropical Freeze |
 |---|---|---|

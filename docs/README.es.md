@@ -6,7 +6,7 @@
 compilados en tu computadora a partir de tu propia copia.**
 
 [English](../README.md) · [Sobre el proyecto](ABOUT.es.md) · [Instalar](INSTALL.md) · [Instalar con un agente de IA](../AGENT-INSTALL.md) ·
-[Cómo se probó](TESTING.md) · [Problemas conocidos](KNOWN-ISSUES.md)
+[Cómo se probó](TESTING.md) · [Problemas conocidos](KNOWN-ISSUES.md) · [Cambios](../CHANGELOG.md)
 
 ![El launcher de Country-Box](images/launcher.webp)
 
@@ -25,7 +25,7 @@ consola y dibuja sus gráficos con Vulkan. El resultado es un ejecutable nativo 
 > la verifica archivo por archivo, compila el juego para tu computadora y lo ejecuta. Nada aquí extrae ni descifra
 > nada, y este proyecto nunca dice dónde conseguir un juego.
 
-## Estado — versión 1.0.0
+## Estado — versión 1.0.1
 
 | | Donkey Kong Country Returns HD | Donkey Kong Country: Tropical Freeze |
 |---|---|---|

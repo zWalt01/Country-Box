@@ -1002,7 +1002,9 @@ void Ui::decline_update() {
 }
 
 void Ui::restart_launcher() {
-    std::string exe = lib_.home() + "/app/current/country-box-launcher";
+    // From an AppImage the update replaced that file: start it again; otherwise the installed app/current.
+    const char *ai = getenv("APPIMAGE");
+    std::string exe = ai && *ai ? std::string(ai) : lib_.home() + "/app/current/country-box-launcher";
     if (access(exe.c_str(), X_OK) != 0) {
         toast("The new launcher is not at " + exe, art::kBad);
         return;

@@ -285,7 +285,10 @@ int main(int argc, char **argv) {
         UpdateJob job(i, lib.home(), builds);
         while (!job.done()) SDL_Delay(20);
         printf("%s\n", update_result_json(job).c_str());
-        if (job.ok)
+        if (job.ok && getenv("APPIMAGE") && *getenv("APPIMAGE"))
+            fprintf(stderr, "launcher: %s installed over %s (the previous one is kept as %s.old); start it again\n",
+                    job.to_version.c_str(), job.installed_dir.c_str(), job.installed_dir.c_str());
+        else if (job.ok)
             fprintf(stderr, "launcher: %s installed (%s); previous kept at app/%s; restart the launcher to run it\n",
                     job.to_version.c_str(), job.installed_dir.c_str(), job.from_version.c_str());
         return job.ok ? 0 : 1;
