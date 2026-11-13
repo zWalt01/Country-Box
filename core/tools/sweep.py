@@ -62,7 +62,7 @@ MENU_SCRIPT = """# sweep: title -> Game 1 -> island map -> Jungle -> 1-1 PLAY (t
 """
 
 # Tropical Freeze: from the title, new game with one player in the Original mode (the PLAY MODE screen offers Funky
-# Mode first), to the first level (the warp replaces it). Screens seen with shots (work/settings-runs/menu1, skipped
+# Mode first), to the first level (the warp replaces it). Screens seen with shots (skipped
 # movies): title 10-12 s, GAME SELECT 14-16, PLAY MODE 18-20, CONTROLLER SELECT 22-24, single player 26-28.
 TF_MENU_SCRIPT = """# sweep (Tropical Freeze): title -> GAME SELECT new game -> PLAY MODE: Original (right from Funky) -> controller,
 # single player, character -> first level (the warp replaces it). The As after the menus end the skipped movies

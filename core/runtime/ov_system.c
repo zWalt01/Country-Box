@@ -747,7 +747,7 @@ static void ov_user_difference(Cpu *c) {
 // and is served the Standard font. tools/fetch_fonts.py fetches the files; build_linux.py puts them in <exe>/fonts.
 // Per type, the first of: CB_SYSTEM_FONT (one .ttf/.otf/.ttc for every type), <fonts dir>/<the type's file>, the
 // Standard file of the fonts dir. The fonts dir is CB_FONTS_DIR, else <executable directory>/fonts.
-// Measured (docs/FUENTES.md): Tropical Freeze imports no nn::pl function; Returns HD imports the three and, in English,
+// Measured: Tropical Freeze imports no nn::pl function; Returns HD imports the three and, in English,
 // never calls them. Address is the start of a plain sfnt file (what libnx hands a game; supuesto: no run has called it)
 // and Size its length. The load state is always Loaded. With no font at all the game gets Address 0 and Size 0 and
 // one log line names where fonts were looked for: text the game draws with its own fonts is not affected.

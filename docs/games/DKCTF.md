@@ -76,7 +76,7 @@ Further fixes (after the title screen):
 | Cutscene frozen on frame 1 | the game's movie player shows frames in queue order and only when their time exceeds the last one shown; the host decoder stamped each output with the *decode* time of its input (B-frames) | `ov_movie.c`: the output time from openh264 |
 | H.264 without SPS/PPS | the SDK 4.4 extractor (Android 5.1 stagefright) gives the `avcc` record, not `csd-0`/`csd-1` | `ov_movie.c`: SPS/PPS converted from `avcc` to Annex B |
 | "Error" at the end of a movie | TF sends end-of-stream in a 2 MiB buffer at time 0 | the failure of that entry does not count as an error |
-| Audio loops that play only once | before REV8 the wave-buffer record has no `loop_count` (Ryujinx `ToCommon(1)`: -1) | `audren.c` (tf-helper `5026941`) |
+| Audio loops that play only once | before REV8 the wave-buffer record has no `loop_count` (Ryujinx `ToCommon(1)`: -1) | `audren.c` |
 
 Diagnostic tools (in `ov_dktf.c`, all enabled by environment variables): `CB_TF_TRACE` (per-symbol call counter with arguments), `CB_TF_CAMPROBE` (timer and state of the cutscene cameras), `CB_TF_MSGLOG=<s>` (script messages delivered: destination, sender, action and event as fourcc).
 
@@ -86,7 +86,7 @@ The 1-1 intro waits for the player to **repeatedly press Y/X** (a star icon with
 
 | Window | Frames | ms mean | p50 | p95 | p99 | max | > 16.9 ms | > 33.4 ms |
 |---|---|---|---|---|---|---|---|---|
-| 220–280 s (`CB_TF_MEASURE=220,280`, run-61) | 3600 | 16.67 | 16.66 | 17.32 | 18.91 | 26.71 | 548 | 0 |
+| 220–280 s (`CB_TF_MEASURE=220,280`) | 3600 | 16.67 | 16.66 | 17.32 | 18.91 | 26.71 | 548 | 0 |
 
 CPU per frame (all threads): **8.25 ms**; the busiest threads: game thread `g100a p44` 5.09, `guest-main` 1.82, `audren` 0.50, `g100f p29` 0.47, `vk_present` 0.19. The same order as Returns HD on the development PC (7–10 ms), with one dominant game thread.
 
@@ -107,11 +107,11 @@ The texture builder translates the game's texture-format enumeration into GPU fo
 
 All of them have a path in the runtime; none falls into "unsupported format".
 
-### Graphics thread (`g100a`, 6–8 ms per frame) — profile prof-65 (this thread only, `MP4_PROFILE_THREAD=g100a`)
+### Graphics thread (`g100a`, 6–8 ms per frame) — profile of this thread only (`MP4_PROFILE_THREAD=g100a`)
 
-Samples (1 kHz, including when the thread waits): C library 83 % (66 % waiting on futex, **9 % `sched_yield`**, 3.4 % driver `ioctl`, ~2 % close/fstat/lseek), game code 11 % (the UI middleware and the graphics pool allocator), runtime 3.5 %, Mesa Vulkan driver 1.8 %. The `sched_yield` was the presentation pacing of `nvnWindowAcquireTexture` (1–2 ms of spinning per frame); commit `af22bfd` replaces it with a single sleep (A/B comparison pending). The pools that grew by about one per frame (830 → 2037 over 1200 frames) were a leak caused by the runtime, not allocator churn: `nvnTextureGetZCullStorageSize` returned 0 and `SaveZCullInformation` created an empty pool every frame (commit `2c1b37b`, verified in run-72; see `docs/OPTIMIZACION.md`). The close/fstat/lseek calls are not yet explained (those empty pools did not open file descriptors); to be measured with a new profile.
+Samples (1 kHz, including when the thread waits): C library 83 % (66 % waiting on futex, **9 % `sched_yield`**, 3.4 % driver `ioctl`, ~2 % close/fstat/lseek), game code 11 % (the UI middleware and the graphics pool allocator), runtime 3.5 %, Mesa Vulkan driver 1.8 %. The `sched_yield` was the presentation pacing of `nvnWindowAcquireTexture` (1–2 ms of spinning per frame); it now uses a single sleep. The pools that grew by about one per frame (830 → 2037 over 1200 frames) were a leak caused by the runtime, not allocator churn: `nvnTextureGetZCullStorageSize` returned 0 and `SaveZCullInformation` created an empty pool every frame (fixed and verified). The close/fstat/lseek calls are not yet explained (those empty pools did not open file descriptors); to be measured with a new profile.
 
-### 1-1 with `CB_SKIP_MOVIES` (2026-11-12, *measured*, run-73, headless 1920x1080)
+### 1-1 with `CB_SKIP_MOVIES` (2026-11-12, *measured*, headless 1920x1080)
 
 The first cutscene (149 s) is skipped to 0.0 s; "measuring" starts 19.0 s after the warp; the airplane intro with the Y/X prompt is visible. 5 900 frames: 16.67 ms mean, p99 21.24, 3 frames > 33.4 ms; CPU 9.67 ms per frame (game thread 4.29).
 
