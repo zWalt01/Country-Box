@@ -18,6 +18,7 @@ import argparse
 import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -72,9 +73,13 @@ def mem_total():
 
 def ninja_text(gen, out, mods, gen_opt='-O1'):
     q = lambda p: str(p).replace('$', '$$').replace(' ', '$ ').replace(':', '$:')
-    inc = ['-I', str(RUNTIME), '-I', str(gen)]
-    rt_inc = inc + ['-I', str(out), '-I', str(RUNTIME / 'third_party'), '-I', str(RUNTIME / 'third_party' / 'vma'),
-                    '-I', str(RUNTIME / 'third_party' / 'imgui')] + pkg('--cflags', PKGS)
+    # Country-Box: flags reach the shell through Ninja's variables, unquoted; a folder with a space (a portable
+    # AppImage's .home next to "My Games", a user name) split every -I in two. Each one is shell-quoted, then
+    # Ninja-escaped.
+    a = lambda s: shlex.quote(str(s)).replace('$', '$$')
+    inc = ['-I', a(RUNTIME), '-I', a(gen)]
+    rt_inc = inc + ['-I', a(out), '-I', a(RUNTIME / 'third_party'), '-I', a(RUNTIME / 'third_party' / 'vma'),
+                    '-I', a(RUNTIME / 'third_party' / 'imgui')] + [a(f) for f in pkg('--cflags', PKGS)]
     lines = [
         '# Written by tools/build_linux.py; do not edit.',
         'ninja_required_version = 1.10',

@@ -44,6 +44,7 @@
 #include "input.h"
 #include "nvn_api.h"
 #include "platform/platform.h"
+#include "savestate.h"
 #include "ui/menu.h"
 #include "vk.h"
 
@@ -450,6 +451,7 @@ int gfx_window_monitor_size(int *w, int *h) {
 // ExitProcess did: no atexit handlers (prof_write is called here instead).
 static void window_close(void) {
     rt_log("gfx: window closed; exiting");
+    ss_shutdown();   // Country-Box: this session's save states (savestate.c) cannot load in another
     fs_save_flush();
     vk_pipeline_save();
     prof_write();
@@ -518,6 +520,8 @@ static void window_event(const SDL_Event *e) {
             note_applied();   // what cfg_get reads now (the environment may still override it)
         }
         if (e->key.key == SDLK_F8) prof_toggle();   // MP4_PROFILE_FRAMES=key
+        if (e->key.key == SDLK_F5) ss_request_save();   // Country-Box: save states (savestate.c)
+        if (e->key.key == SDLK_F6) ss_request_load(0);
         if (e->key.key == SDLK_P) {
             rt_shot_ring_dump();   // MP4_SHOT_RING: the last presents to PNGs
             vk_dump_arm(__atomic_load_n(&gfx_counters.frames, __ATOMIC_RELAXED) + 2);   // MP4_DUMP=when: the frame after

@@ -1,5 +1,6 @@
 // Country-Box launcher: the library (library.h).
 #include "library.h"
+#include "relocate.h"
 
 #include <cctype>
 #include <cerrno>
@@ -66,13 +67,24 @@ const char *game_state_label(GameState s) {
     return "?";
 }
 
+static bool g_home_fixed = false;
+
+bool launcher_home_fixed() { return g_home_fixed; }
+
 std::string launcher_home(const std::string &override_dir) {
+    g_home_fixed = true;
     if (!override_dir.empty()) return override_dir;
     const char *e = getenv("CB_LAUNCHER_HOME");
     if (e && *e) return e;
-    const char *x = getenv("XDG_DATA_HOME"), *h = getenv("HOME");
-    if (x && *x) return std::string(x) + "/country-box";
-    return std::string(h ? h : ".") + "/.local/share/country-box";
+    g_home_fixed = false;
+    // the folder the player moved the library to (relocate.h), while it is there
+    std::ifstream f(library_location_file());
+    std::string moved;
+    std::getline(f, moved);
+    while (!moved.empty() && strchr(" \t\r\n", moved.back())) moved.pop_back();
+    std::error_code ec;
+    if (!moved.empty() && fs::is_directory(moved, ec)) return moved;
+    return default_launcher_home();
 }
 
 Library::Library(std::string home) : home_(std::move(home)) {
@@ -278,6 +290,15 @@ bool Library::poll_running() {
         }
     }
     return ended;
+}
+
+void Library::relocate(const std::string &home) {
+    home_ = home;
+    for (auto &g : games_) {   // what came from the old library.ini is read again from the moved one
+        g.copy.clear(), g.copy_checked.clear(), g.copy_manifest.clear(), g.build_dir.clear();
+        g.build_set = false;
+    }
+    load();
 }
 
 bool Library::any_running() const {

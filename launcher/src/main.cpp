@@ -14,11 +14,14 @@
 //                                                          or .tar/.tar.gz/.tar.zst), checked against this copy
 //   country-box-launcher --set-build GAME DIR              use the game binary in DIR (DIR/country-box)
 //   country-box-launcher --play GAME                       start the game and wait for it
+//   country-box-launcher --move-library DIR                move the library (builds, saves, logs) to DIR, or to
+//                                                          DIR/Country-Box when DIR has files; later runs use it
 //
 // --auto steps: frames:N, tab:games|settings|about, browse:GAME:DIR, add:GAME:FOLDER, prepare:GAME[:shaders],
 // import:GAME, wait-check, wait-prep, wait-stage:S[:N] (S: 2 lift, 3 compile, 4 shaders), settings-game:GAME,
 // key:NAME (down|up|left|right|a|b|lb|rb), pad (show the controller cursor), nav (print the focus), shot:NAME, quit,
-// update-wait (until the update check answered), update-ask (show the dialog), update-now, update-notnow.
+// update-wait (until the update check answered), update-ask (show the dialog), update-now, update-notnow,
+// go:PATH (the browser's path field), system-picker, library-browse, move-here, wait-move, wheel:X:Y:NOTCHES, mouse:X:Y:0|1 (X, Y: fractions of the window).
 // CB_LAUNCHER_DEBUG_NAV=1 logs Dear ImGui's navigation and focus events. CB_LAUNCHER_NO_UPDATE=1 skips the check.
 #include <SDL3/SDL.h>
 
@@ -40,6 +43,7 @@
 #include "png.h"
 #include "prepare.h"
 #include "proc.h"
+#include "relocate.h"
 #include "sha256.h"
 #include "ui.h"
 #include "update.h"
@@ -53,7 +57,8 @@ static void usage() {
             "usage: country-box-launcher [--home DIR] [--size WxH | --fullscreen] [--shot-dir DIR --auto STEPS]\n"
             "       country-box-launcher [--home DIR] --status | --verify GAME FOLDER [--quick] | --add GAME FOLDER |\n"
             "                            --set-build GAME DIR | --prepare GAME [--shaders] | --import-build GAME PATH |\n"
-            "                            --play GAME | --check-update | --update | --setup GAME=FOLDER... (GAME: dkcrhd, dkctf or auto)\n"
+            "                            --play GAME | --check-update | --update | --setup GAME=FOLDER... (GAME: dkcrhd, dkctf or auto) |\n"
+            "                            --move-library DIR\n"
             "games: dkcrhd (Returns HD), dkctf (Tropical Freeze)\n"
             "update channel: CB_UPDATE_API or <home>/update.ini api_url (default: this project's GitHub Releases)\n");
 }
@@ -186,6 +191,7 @@ static int run_hub(Library &lib, int w, int h, bool fullscreen, const std::strin
                 !ui.prep_reached(atoi(parts[1].c_str()), parts.size() > 2 ? atoi(parts[2].c_str()) : 0))
                 break;
             if (op == "update-wait" && (ui.update_checking() || !ui.update_known())) break;
+            if (op == "wait-move" && !ui.moving_finished()) break;
             step++;
             if (op == "frames" && parts.size() > 1) wait_frames = atoi(parts[1].c_str());
             else if (op == "tab" && parts.size() > 1)
@@ -196,6 +202,19 @@ static int run_hub(Library &lib, int w, int h, bool fullscreen, const std::strin
             else if (op == "import" && parts.size() > 1)
                 ui.start_import(parts[1], parts.size() > 2 ? st.substr(op.size() + parts[1].size() + 2) : "");
             else if (op == "use-folder") ui.start_import_dir(ui.flow_game(), ui.browse_dir());
+            else if (op == "system-picker") ui.open_system_picker();
+            else if (op == "library-browse") ui.start_library_browse();
+            else if (op == "move-here") ui.start_library_move(ui.browse_dir());
+            else if (op == "go") ui.browse_go(st.substr(op.size() + 1));   // the browser's path field
+            else if (op == "wheel" && parts.size() > 3)   // wheel:X:Y:NOTCHES (X, Y: fractions of the window; + scrolls down)
+                io.AddMousePosEvent(pw * (float)atof(parts[1].c_str()), ph * (float)atof(parts[2].c_str())),
+                io.AddMouseWheelEvent(0, -(float)atof(parts[3].c_str())), wait_frames = 3;
+            else if (op == "mouse" && parts.size() > 3) {   // mouse:X:Y:DOWN (0/1): moves there, then presses or lets go
+                io.AddMousePosEvent(pw * (float)atof(parts[1].c_str()), ph * (float)atof(parts[2].c_str()));
+                io.AddMouseButtonEvent(0, parts[3] == "1");
+                wait_frames = 2;
+                break;
+            }
             else if (op == "settings-game" && parts.size() > 1) ui.select_settings_game(parts[1]);
             else if (op == "update-ask") ui.show_update_ask();
             else if (op == "update-now") ui.start_update();
@@ -320,6 +339,15 @@ static int run_setup(Library &lib, const std::vector<std::string> &args) {
 }
 
 int main(int argc, char **argv) {
+    // Started by the AppImage's AppRun: our SDL is loaded already; the programs started from here (Python, clang,
+    // ninja, the game built against the system's SDL) get the player's own LD_LIBRARY_PATH back.
+    if (getenv("CB_APPRUN")) {
+        const char *orig = getenv("CB_APPRUN_LD_LIBRARY_PATH");
+        if (orig && *orig) setenv("LD_LIBRARY_PATH", orig, 1);
+        else unsetenv("LD_LIBRARY_PATH");
+        unsetenv("CB_APPRUN");
+        unsetenv("CB_APPRUN_LD_LIBRARY_PATH");
+    }
     std::string home, shot_dir = ".", auto_steps, action;
     std::vector<std::string> args;
     int w = 1280, h = 800;
@@ -338,7 +366,8 @@ int main(int argc, char **argv) {
         else if (a == "--quick") quick = true;
         else if (a == "--shaders") shaders_only = true;
         else if (a == "--status" || a == "--verify" || a == "--add" || a == "--set-build" || a == "--play" ||
-                 a == "--prepare" || a == "--import-build" || a == "--check-update" || a == "--update" || a == "--setup")
+                 a == "--prepare" || a == "--import-build" || a == "--check-update" || a == "--update" || a == "--setup" ||
+                 a == "--move-library")
             action = a;
         else if (a == "--help" || a == "-h") return usage(), 0;
         else if (a[0] == '-') return usage(), 2;
@@ -369,6 +398,23 @@ int main(int argc, char **argv) {
         return job.ok ? 0 : 1;
     }
     if (action == "--setup") return run_setup(lib, args);
+    if (action == "--move-library") {
+        if (args.size() != 1) return usage(), 2;
+        if (launcher_home_fixed()) {
+            fprintf(stderr, "launcher: the library folder is set by --home or CB_LAUNCHER_HOME for this run; it can't be moved\n");
+            return 1;
+        }
+        LibraryMove m;
+        std::thread t([&] { move_library(lib.home(), args[0], m); });
+        while (!m.finished.load()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(300));
+            if (m.total.load() > 0) fprintf(stderr, "progress %.3f moving the library\n", (double)m.done.load() / (double)m.total.load());
+        }
+        t.join();
+        printf("{\"ok\": %s, \"from\": %s, \"to\": %s, \"headline\": %s, \"explain\": %s}\n", m.ok ? "true" : "false",
+               json_quote(m.from).c_str(), json_quote(m.to).c_str(), json_quote(m.headline).c_str(), json_quote(m.explain).c_str());
+        return m.ok ? 0 : 1;
+    }
     Game *g = args.empty() ? nullptr : lib.find(args[0]);
     if (action != "--status" && !g) {
         fprintf(stderr, "launcher: unknown game '%s'\n", args.empty() ? "" : args[0].c_str());

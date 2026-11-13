@@ -341,8 +341,8 @@ static std::string missing_tools(std::string *python) {
     if (python->empty()) missing += (missing.empty() ? std::string() : std::string(", ")) + "python3";
     else {
         std::string out;
-        int rc = proc_run({*python, "-c", "import capstone, unicorn, lz4, numpy"}, "", {}, out, 30000);
-        if (rc != 0) missing += (missing.empty() ? std::string() : std::string(", ")) + "python3 with capstone, unicorn, lz4 and numpy";
+        int rc = proc_run({*python, "-c", "import capstone, unicorn, numpy"}, "", {}, out, 30000);
+        if (rc != 0) missing += (missing.empty() ? std::string() : std::string(", ")) + "python3 with capstone, unicorn and numpy";
     }
     if (!which("pkg-config").empty()) {   // proc_run execv's: absolute paths only
         std::string out;
@@ -366,10 +366,16 @@ static std::string missing_tools_hint(const std::string &missing) {
         return "SteamOS has no compiler. Prepare the game on a Linux PC with the same Country-Box version, copy its "
                "build folder here, and use \u201cImport a build\u201d on the game's card.";
     bool py_only = missing.rfind("python3 with", 0) == 0;
-    if (py_only)
+    if (py_only) {   // the real place (XDG_DATA_HOME, a portable AppImage's home), quoted for any folder name
+        std::string base = getenv("XDG_DATA_HOME") && *getenv("XDG_DATA_HOME") ? getenv("XDG_DATA_HOME")
+                           : std::string(getenv("HOME") ? getenv("HOME") : "") + "/.local/share";
+        std::string q = "'", env = base + "/country-box/python";
+        for (char c : env) q += c == '\'' ? std::string("'\\''") : std::string(1, c);
+        q += "'";
+        std::string py = q.substr(0, q.size() - 1) + "/bin/python'";
         return "Python could not set itself up (no network, or python3 without its venv module). In a terminal:\n"
-               "python3 -m venv ~/.local/share/country-box/python\n"
-               "~/.local/share/country-box/python/bin/pip install capstone==5.0.9 lz4==4.4.5 numpy==2.5.4 unicorn==2.1.4" + tail;
+               "python3 -m venv " + q + "\n" + py + " -m pip install capstone==5.0.9 numpy==2.5.4 unicorn==2.1.4" + tail;
+    }
     if (has("arch"))
         return "In a terminal:\nsudo pacman -S --needed clang lld ninja pkgconf python sdl3 vulkan-headers vulkan-icd-loader "
                "opus libvpx zlib" + tail;
@@ -445,14 +451,16 @@ bool PrepareJob::preflight(std::string *python) {
     std::string missing = missing_tools(python);
     // Only the Python modules missing, and a system python3 there: make the launcher's own environment and install
     // the pinned modules into it, once (needs the network). The player never sees this as an error.
-    if (missing == "python3 with capstone, unicorn, lz4 and numpy" && !getenv("CB_PYTHON") && own_python().empty()) {
+    if (missing == "python3 with capstone, unicorn and numpy" && !getenv("CB_PYTHON") && own_python().empty()) {
         std::string sys_py = which("python3");
         std::string base = getenv("XDG_DATA_HOME") && *getenv("XDG_DATA_HOME") ? getenv("XDG_DATA_HOME")
                            : std::string(getenv("HOME") ? getenv("HOME") : "") + "/.local/share";
         std::string env = base + "/country-box/python";
         set_line_text("setting up Python for the build (first time only; downloads about 40 MB)");
         bool made = !sys_py.empty() && child({sys_py, "-m", "venv", env}, payload_, "python") &&
-                    child({env + "/bin/pip", "install", "--disable-pip-version-check", "-r", payload_ + "/requirements.txt"},
+                    // python -m pip, not bin/pip: that script starts through the shell with the venv's path in
+                    // double quotes, so a folder with $ or ` in its name broke it
+                    child({env + "/bin/python", "-m", "pip", "install", "--disable-pip-version-check", "-r", payload_ + "/requirements.txt"},
                           payload_, "python");
         if (!made && outcome_.kind == "cancelled") return false;
         if (!made) {

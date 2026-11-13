@@ -9,12 +9,15 @@
 #include <cstdlib>
 #include <filesystem>
 #include <map>
+#include <mutex>
 #include <unistd.h>
 
 #include "art.h"
 #include "imgui_internal.h"
 #include "proc.h"
 #include "update.h"
+
+#include <SDL3/SDL.h>
 
 namespace fs = std::filesystem;
 using art::alpha;
@@ -42,9 +45,28 @@ static std::string human_bytes(double b) {
     return t;
 }
 
+// Text never runs under a button: every button() records where it was drawn, and text that would reach down into
+// one of last frame's buttons (the screens are the same from frame to frame) is cut just above it. Whatever the
+// window size or the length of a message, a button stays readable and pressable; the layout itself aims to fit,
+// this is the guarantee behind it.
+static std::vector<ImRect> g_buttons_prev, g_buttons_cur;
+
+static void buttons_new_frame() {
+    g_buttons_prev.swap(g_buttons_cur);
+    g_buttons_cur.clear();
+}
+
 // Text helpers on the window's draw list
 static void text_at(ImFont *f, ImVec2 p, ImU32 col, const std::string &s, float wrap = 0) {
-    ImGui::GetWindowDrawList()->AddText(f, f->FontSize, p, col, s.c_str(), nullptr, wrap);
+    ImVec2 sz = f->CalcTextSizeA(f->FontSize, 1e9f, wrap, s.c_str());
+    float floor_y = 1e9f;
+    for (const ImRect &b : g_buttons_prev)
+        if (b.Min.x < p.x + sz.x && b.Max.x > p.x && b.Min.y > p.y && b.Min.y < p.y + sz.y) floor_y = std::min(floor_y, b.Min.y);
+    if (floor_y < 1e9f) {
+        ImVec4 clip(-1e9f, -1e9f, 1e9f, floor_y - 2);
+        ImGui::GetWindowDrawList()->AddText(f, f->FontSize, p, col, s.c_str(), nullptr, wrap, &clip);
+    } else
+        ImGui::GetWindowDrawList()->AddText(f, f->FontSize, p, col, s.c_str(), nullptr, wrap);
 }
 static ImVec2 text_size(ImFont *f, const std::string &s, float wrap = 0) {
     return f->CalcTextSizeA(f->FontSize, 1e9f, wrap, s.c_str());
@@ -67,6 +89,8 @@ static void panel(ImVec2 mn, ImVec2 mx, float s, ImU32 fill = kPanel) {
     dl->AddRect(mn, mx, kPanelEdge, 22 * s, 0, 3 * s);
 }
 
+static bool system_picker_available();
+
 bool Ui::focus_take() {
     if (focus_ <= 0) return false;
     focus_ = 0;
@@ -75,13 +99,14 @@ bool Ui::focus_take() {
 
 bool Ui::busy() const {
     return job_ != nullptr || prep_ != nullptr || import_thread_.joinable() || update_ != nullptr || checker_ != nullptr ||
-           lib_.any_running() || t_ < toast_until_;
+           lib_.any_running() || t_ < toast_until_ || (move_ && !move_->finished.load());
 }
 
 Ui::~Ui() {
     if (prep_) prep_->cancel();
     if (update_) update_->cancel();
     if (import_thread_.joinable()) import_thread_.join();
+    if (move_thread_.joinable()) move_thread_.join();   // a move is never left half done
 }
 
 void Ui::toast(const std::string &text, ImU32 col) {
@@ -95,6 +120,7 @@ bool Ui::button(const char *id, const char *label, ImVec2 pos, ImVec2 size, ImU3
     ImGui::BeginDisabled(!enabled);
     bool pressed = ImGui::InvisibleButton(id, size, ImGuiButtonFlags_EnableNav);
     ImGui::EndDisabled();
+    g_buttons_cur.push_back(ImRect(pos, V(pos.x + size.x, pos.y + size.y)));
     if (focus_here || (enabled && focus_take())) {
         ImGui::SetFocusID(ImGui::GetItemID(), ImGui::GetCurrentWindow());
         GImGui->NavHighlightItemUnderNav = true;
@@ -120,7 +146,7 @@ bool Ui::button(const char *id, const char *label, ImVec2 pos, ImVec2 size, ImU3
     ImU32 tc = !enabled ? IM_COL32(150, 160, 150, 255) : luminance(col) > 0.55f ? art::kInk : art::kCream;
     std::string l = label;
     ImVec2 ts = text_size(f, l);
-    text_at(f, V(mn.x + (size.x - ts.x) * 0.5f, mn.y + (size.y - ts.y) * 0.5f), tc, l);
+    dl->AddText(f, f->FontSize, V(mn.x + (size.x - ts.x) * 0.5f, mn.y + (size.y - ts.y) * 0.5f), tc, l.c_str());   // its own label
     return pressed && enabled;
 }
 
@@ -129,6 +155,7 @@ bool Ui::button(const char *id, const char *label, ImVec2 pos, ImVec2 size, ImU3
 void Ui::frame(float scale, float t) {
     s_ = scale;
     t_ = t;
+    buttons_new_frame();
     if (ImGui::GetFrameCount() <= 3) request_focus();   // after Dear ImGui's own first-frame focus on the window
     ImGuiIO &io = ImGui::GetIO();
     ImVec2 W = io.DisplaySize;
@@ -175,7 +202,8 @@ void Ui::frame(float scale, float t) {
     // B / Escape goes back
     bool back = ImGui::IsKeyPressed(ImGuiKey_Escape, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false);
     if (back) {
-        if (flow_ == Flow::Checking && job_) job_->cancel();
+        if (flow_ == Flow::Moving) {}   // a move is not cancelled halfway; Done closes it
+        else if (flow_ == Flow::Checking && job_) job_->cancel();
         else if (flow_ == Flow::Prepare && prep_ && !prep_->done()) prep_->cancel();
         else if (flow_ == Flow::Updating && update_) update_->cancel();
         else if (flow_ == Flow::UpdateAsk) decline_update();
@@ -205,6 +233,7 @@ void Ui::frame(float scale, float t) {
         else if (flow_ == Flow::Result) draw_result(fmn, fmx);
         else if (flow_ == Flow::UpdateAsk) draw_update_ask(fmn, fmx);
         else if (flow_ == Flow::Updating) draw_updating(fmn, fmx);
+        else if (flow_ == Flow::Moving) draw_moving(fmn, fmx);
         else draw_update_result(fmn, fmx);
     }
     draw_footer(V(0, W.y - footer_h), W);
@@ -226,6 +255,7 @@ void Ui::finish_flow() {
     if (prep_) prep_->cancel(), prep_.reset();
     if (import_thread_.joinable() && import_done_.load()) import_thread_.join();
     browse_import_ = false;
+    browse_library_ = false;
     if (update_) update_->cancel(), update_.reset();
     flow_ = Flow::None;
     lib_.refresh();
@@ -456,6 +486,8 @@ void Ui::list_dir(const std::string &dir) {
     std::error_code ec;
     dir_ = fs::weakly_canonical(dir, ec).string();
     if (dir_.empty()) dir_ = dir;
+    snprintf(path_buf_, sizeof path_buf_, "%s", dir_.c_str());
+    list_top_ = true;
     entries_.clear();
     browse_note_.clear();
     for (auto it = fs::directory_iterator(dir_, fs::directory_options::skip_permission_denied, ec); !ec && it != fs::directory_iterator();
@@ -485,7 +517,12 @@ void Ui::draw_browse(ImVec2 mn, ImVec2 mx) {
     const Manifest *m = manifest_get(flow_game_);
     panel(mn, mx, s_);
     float pad = 28 * s_, x = mn.x + pad, y = mn.y + 22 * s_;
-    if (browse_import_) {
+    if (browse_library_) {
+        shadow_text(fonts.title, V(x, y), art::kBanana, "Move your library", 2 * s_);
+        y += fonts.title->FontSize + 2 * s_;
+        text_at(fonts.body, V(x, y), art::kCream,
+                "Choose where your games, builds and saves go. A folder with files gets a Country-Box folder inside.", mx.x - x - pad);
+    } else if (browse_import_) {
         shadow_text(fonts.title, V(x, y), art::kBanana, "Import a build", 2 * s_);
         y += fonts.title->FontSize + 2 * s_;
         text_at(fonts.body, V(x, y), art::kCream,
@@ -507,31 +544,81 @@ void Ui::draw_browse(ImVec2 mn, ImVec2 mx) {
         if (button(id.c_str(), places_[i].first.c_str(), V(x, py), V(pw, ph), kButton, true, fonts.small)) list_dir(places_[i].second);
         py += ph + 10 * s_;
     }
-    // the folder list
+    // the folder's path: shows where the list is; type or paste another and press Enter (or Paste)
+    take_picker_answer();
     float lx = x + pw + 24 * s_, lw = mx.x - pad - lx, ly = y, bottom = mx.y - 100 * s_;
     ImDrawList *dl = ImGui::GetWindowDrawList();
-    std::string shown = dir_;
-    while (text_size(fonts.small, shown).x > lw - 20 * s_ && shown.size() > 8) shown = "…" + shown.substr(shown.find('/', 2) == std::string::npos ? 4 : shown.find('/', 2));
-    text_at(fonts.small, V(lx, ly), art::kMuted, shown);
+    text_at(fonts.small, V(lx, ly), art::kMuted, "Folder (type or paste a path, then Enter)");
     ly += fonts.small->FontSize + 8 * s_;
+    float fh = 46 * s_, paste_w = 130 * s_, fw = lw - paste_w - 12 * s_;
+    ImGui::SetCursorScreenPos(V(lx, ly));
+    ImGui::PushFont(fonts.small);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, V(14 * s_, (fh - fonts.small->FontSize) * 0.5f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12 * s_);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 2 * s_);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(4, 16, 9, 200));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(10, 30, 16, 220));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(10, 30, 16, 230));
+    ImGui::PushStyleColor(ImGuiCol_Border, kPanelEdge);
+    ImGui::PushStyleColor(ImGuiCol_Text, art::kCream);
+    ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, alpha(art::kBanana, 0.4f));
+    ImGui::SetNextItemWidth(fw);
+    bool entered = ImGui::InputText("##path", path_buf_, sizeof path_buf_, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);
+    if (ImGui::IsItemFocused() && nav_visible() && !ImGui::IsItemActive())
+        dl->AddRect(V(lx - 3 * s_, ly - 3 * s_), V(lx + fw + 3 * s_, ly + fh + 3 * s_), art::kBanana, 15 * s_, 0, 3.5f * s_);
+    ImGui::PopStyleColor(6);
+    ImGui::PopStyleVar(3);
+    ImGui::PopFont();
+    if (entered) browse_go(path_buf_);
+    if (button("##paste", "Paste", V(lx + fw + 12 * s_, ly), V(paste_w, fh), kButton, true, fonts.small)) {
+        char *clip = SDL_GetClipboardText();
+        std::string text = clip ? clip : "";
+        SDL_free(clip);
+        if (text.empty()) toast("There is no text to paste.", IM_COL32(150, 90, 40, 255));
+        else browse_go(text);
+    }
+    if (flow_ != Flow::Browse) return;   // the path was a copy: its check has started
+    ly += fh + 12 * s_;
+    // the folder list: scrolls with the mouse wheel, by dragging (touch screens) and by moving the focus
     ImGui::SetCursorScreenPos(V(lx, ly));
     ImGui::PushStyleColor(ImGuiCol_ChildBg, IM_COL32(4, 16, 9, 200));
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, IM_COL32(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, alpha(art::kBanana, 0.55f));
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, alpha(art::kBanana, 0.8f));
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, art::kBanana);
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 14 * s_);
-    ImGui::BeginChild("##dirs", V(lw, bottom - ly), ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoScrollbar);
-    float rh = 54 * s_, rw = lw - 16 * s_;
+    ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 14 * s_);
+    ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 7 * s_);
+    ImVec2 list_mn(lx, ly), list_mx(lx + lw, bottom);
+    ImGui::BeginChild("##dirs", V(lw, bottom - ly), ImGuiChildFlags_NavFlattened);
+    if (list_top_) ImGui::SetScrollY(0), list_top_ = false;
+    {   // drag to scroll: a press on the list that moves more than a few points scrolls it and opens nothing
+        ImGuiIO &io = ImGui::GetIO();
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            ImVec2 c = io.MouseClickedPos[0];
+            list_drag_ = c.x >= list_mn.x && c.x < list_mx.x - 20 * s_ && c.y >= list_mn.y && c.y < list_mx.y;   // not the scrollbar
+            list_dragged_ = false;
+        }
+        if (list_drag_ && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 8 * s_)) {
+            list_dragged_ = true;
+            ImGui::SetScrollY(ImGui::GetScrollY() - io.MouseDelta.y);
+        }
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) && !ImGui::IsMouseReleased(ImGuiMouseButton_Left)) list_drag_ = list_dragged_ = false;
+    }
+    float rh = 54 * s_, rw = lw - 16 * s_ - 14 * s_;
     std::string go;
     auto row = [&](const std::string &id, const std::string &label, const Entry *e) {
         ImVec2 p = ImGui::GetCursorScreenPos();
         p.x += 8 * s_;
         ImGui::SetCursorScreenPos(p);
-        bool pressed = ImGui::InvisibleButton(id.c_str(), V(rw, rh), ImGuiButtonFlags_EnableNav);
+        bool pressed = ImGui::InvisibleButton(id.c_str(), V(rw, rh), ImGuiButtonFlags_EnableNav) && !list_dragged_;
         if (focus_take()) ImGui::SetFocusID(ImGui::GetItemID(), ImGui::GetCurrentWindow()), GImGui->NavHighlightItemUnderNav = true;
-        bool hot = ImGui::IsItemHovered() || (ImGui::IsItemFocused() && nav_visible());
+        bool hot = (ImGui::IsItemHovered() && !list_dragged_) || (ImGui::IsItemFocused() && nav_visible());
         ImDrawList *cl = ImGui::GetWindowDrawList();
         if (hot) cl->AddRectFilled(p, V(p.x + rw, p.y + rh), IM_COL32(246, 201, 69, 50), 12 * s_), cl->AddRect(p, V(p.x + rw, p.y + rh), art::kBanana, 12 * s_, 0, 3 * s_);
         art::icon_folder(cl, V(p.x + 14 * s_, p.y + 14 * s_), V(p.x + 50 * s_, p.y + rh - 14 * s_), e && (e->copy || (browse_import_ && e->build)) ? art::kBanana : IM_COL32(196, 160, 96, 255));
         cl->AddText(fonts.body, fonts.body->FontSize, V(p.x + 64 * s_, p.y + (rh - fonts.body->FontSize) * 0.5f), art::kCream, label.c_str());
-        if (e && e->copy && !browse_import_) {
+        if (e && e->copy && !browse_import_ && !browse_library_) {
             const Manifest *gm = e->game.empty() ? nullptr : manifest_get(e->game);
             std::string tag = gm ? "Game copy: " + gm->name : "Game copy (not a supported game)";
             ImVec2 ts = text_size(fonts.small, tag);
@@ -549,11 +636,11 @@ void Ui::draw_browse(ImVec2 mn, ImVec2 mx) {
         ImGui::SetCursorScreenPos(V(p.x - 8 * s_, p.y + rh + 4 * s_));
         return pressed;
     };
-    ImGui::SetCursorScreenPos(V(lx, ly + 8 * s_));
+    ImGui::SetCursorPos(V(0, 8 * s_));   // the child's own coordinates, so the rows move with its scroll
     if (dir_ != "/" && row("##up", "..  (up one folder)", nullptr)) go = fs::path(dir_).parent_path().string();
     for (size_t i = 0; i < entries_.size(); i++) {
         if (row("##d" + std::to_string(i), entries_[i].name, &entries_[i])) {
-            if (!browse_import_ && entries_[i].copy) start_check(flow_game_, entries_[i].path);
+            if (!browse_import_ && !browse_library_ && entries_[i].copy) start_check(flow_game_, entries_[i].path);
             else go = entries_[i].path;
         }
     }
@@ -562,12 +649,18 @@ void Ui::draw_browse(ImVec2 mn, ImVec2 mx) {
                                              browse_note_.empty() ? "No folders here." : browse_note_.c_str());
     ImGui::Dummy(V(1, 8 * s_));
     ImGui::EndChild();
-    ImGui::PopStyleVar();
-    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(3);
+    ImGui::PopStyleColor(5);
     if (!go.empty()) list_dir(go), request_focus();
     // actions
     float bh = 62 * s_, by = mx.y - pad - bh + 6 * s_;
-    if (browse_import_) {
+    if (system_picker_available() &&
+        button("##system", "System picker…", V(x, by), V(pw, bh), kButton, true, fonts.body))   // pressable again: a dialog may never show
+        open_system_picker();
+    if (browse_library_) {
+        if (button("##use", "Move it here", V(mx.x - pad - 300 * s_, by), V(300 * s_, bh), art::kBanana, true, fonts.big))
+            start_library_move(dir_);
+    } else if (browse_import_) {
         if (button("##use", "Use this folder", V(mx.x - pad - 300 * s_, by), V(300 * s_, bh), art::kBanana, true, fonts.big))
             start_import_dir(flow_game_, dir_);
     } else if (button("##use", "Use this folder", V(mx.x - pad - 300 * s_, by), V(300 * s_, bh), art::kBanana, flow_ == Flow::Browse, fonts.big))
@@ -575,6 +668,162 @@ void Ui::draw_browse(ImVec2 mn, ImVec2 mx) {
     if (button("##cancel", "Cancel", V(mx.x - pad - 300 * s_ - 24 * s_ - 200 * s_, by), V(200 * s_, bh), IM_COL32(90, 60, 34, 255), true, fonts.big))
         finish_flow();
     (void)dl;
+}
+
+// ---- add your copy: a typed or pasted path, and the system's own folder dialog
+
+// The desktop's folder dialog (SDL 3: the XDG portal, else zenity). Not offered inside gamescope (Steam Deck Game
+// Mode, Steam Big Picture): there a desktop dialog would open behind the game's screen. CB_SYSTEM_PICKER=1/0 forces it.
+static bool system_picker_available() {
+    if (const char *f = getenv("CB_SYSTEM_PICKER"); f && *f) return *f == '1';
+    return !getenv("GAMESCOPE_WAYLAND_DISPLAY") && !getenv("SteamGamepadUI");
+}
+
+namespace {
+struct PickerAnswer {
+    std::mutex m;
+    bool ready = false, failed = false;
+    std::string path, err;
+} g_picker;
+}
+
+static void picker_done(void *, const char *const *files, int) {   // SDL may call this on another thread
+    std::lock_guard<std::mutex> lk(g_picker.m);
+    g_picker.ready = true;
+    g_picker.failed = files == nullptr;
+    g_picker.err = files ? "" : SDL_GetError();
+    g_picker.path = files && files[0] ? files[0] : "";   // empty: the player cancelled
+}
+
+void Ui::open_system_picker() {
+    {
+        std::lock_guard<std::mutex> lk(g_picker.m);
+        g_picker.ready = false;
+    }
+    picker_open_ = true;
+    SDL_Window *win = SDL_GetWindowFromID((SDL_WindowID)(intptr_t)ImGui::GetMainViewport()->PlatformHandle);
+    SDL_ShowOpenFolderDialog(picker_done, nullptr, win, dir_.empty() ? nullptr : dir_.c_str(), false);
+}
+
+void Ui::take_picker_answer() {
+    if (!picker_open_) return;
+    std::string path, err;
+    bool failed;
+    {
+        std::lock_guard<std::mutex> lk(g_picker.m);
+        if (!g_picker.ready) return;
+        g_picker.ready = false;
+        path = g_picker.path, err = g_picker.err, failed = g_picker.failed;
+    }
+    picker_open_ = false;
+    if (failed) {
+        fprintf(stderr, "launcher: system folder picker: %s\n", err.c_str());
+        toast("No system file picker here. Use the list, or paste the folder's path.", IM_COL32(150, 90, 40, 255));
+    } else if (!path.empty())
+        browse_go(path);
+}
+
+void Ui::browse_go(const std::string &text) {
+    std::string p = text;
+    auto trim = [&] {
+        while (!p.empty() && strchr(" \t\r\n", p.back())) p.pop_back();
+        size_t a = p.find_first_not_of(" \t\r\n");
+        p = a == std::string::npos ? "" : p.substr(a);
+    };
+    trim();
+    if (size_t nl = p.find('\n'); nl != std::string::npos) p = p.substr(0, nl), trim();   // a pasted list: its first line
+    if (p.size() >= 2 && (p[0] == '"' || p[0] == '\'') && p.back() == p[0]) p = p.substr(1, p.size() - 2);
+    if (p.rfind("file://", 0) == 0) {   // a path copied from a file manager: file:///.../My%20Games
+        std::string d;
+        for (size_t i = 7; i < p.size(); i++) {
+            if (p[i] == '%' && i + 2 < p.size() && isxdigit((unsigned char)p[i + 1]) && isxdigit((unsigned char)p[i + 2]))
+                d += (char)strtol(p.substr(i + 1, 2).c_str(), nullptr, 16), i += 2;
+            else d += p[i];
+        }
+        p = d;
+    }
+    if (p == "~" || p.rfind("~/", 0) == 0)
+        if (const char *h = getenv("HOME")) p = h + p.substr(1);
+    if (p.empty()) return;
+    std::error_code ec;
+    if (fs::is_regular_file(p, ec)) p = fs::path(p).parent_path().string();   // a file inside the folder: its folder
+    if (!fs::is_directory(p, ec)) {
+        toast("That folder doesn't exist: " + p, IM_COL32(150, 90, 40, 255));
+        snprintf(path_buf_, sizeof path_buf_, "%s", dir_.c_str());
+        return;
+    }
+    fs::path f(p);
+    if (browse_library_) return list_dir(p), request_focus();
+    if (!browse_import_ && fs::is_directory(f / "exefs", ec) && fs::is_directory(f / "romfs", ec)) return start_check(flow_game_, p);
+    if (browse_import_ && fs::is_regular_file(f / "country-box", ec) && fs::is_regular_file(f / "build-stamp.json", ec))
+        return start_import_dir(flow_game_, p);
+    list_dir(p);
+    request_focus();
+}
+
+// ---- moving the library (relocate.h)
+
+void Ui::start_library_browse() {
+    browse_library_ = true;
+    browse_import_ = false;
+    open_browse("", "");
+}
+
+void Ui::start_library_move(const std::string &picked) {
+    if (move_thread_.joinable()) {
+        if (!move_->finished.load()) return;
+        move_thread_.join();
+    }
+    move_ = std::make_unique<LibraryMove>();
+    std::string from = lib_.home();
+    flow_ = Flow::Moving;
+    request_focus();
+    LibraryMove *m = move_.get();
+    move_thread_ = std::thread([m, from, picked] { move_library(from, picked, *m); });
+}
+
+void Ui::draw_moving(ImVec2 mn, ImVec2 mx) {
+    panel(mn, mx, s_);
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    float cx = (mn.x + mx.x) * 0.5f, y = mn.y + 40 * s_, wrap = mx.x - mn.x - 120 * s_;
+    LibraryMove &m = *move_;
+    bool done = m.finished.load();
+    text_center(fonts.title, cx, y, art::kBanana, done ? (m.ok ? "Your library moved" : "The library stayed where it was") : "Moving your library");
+    y += fonts.title->FontSize + 30 * s_;
+    if (!done) {
+        int64_t d = m.done.load(), t = m.total.load();
+        if (t > 0) {
+            float frac = (float)d / (float)t, bw = std::min(820 * s_, wrap), bh = 34 * s_, bx = cx - bw * 0.5f;
+            dl->AddRectFilled(V(bx, y), V(bx + bw, y + bh), IM_COL32(0, 0, 0, 140), bh * 0.5f);
+            if (frac > 0) dl->AddRectFilled(V(bx, y), V(bx + std::max(bh, bw * frac), y + bh), art::kBanana, bh * 0.5f);
+            dl->AddRect(V(bx, y), V(bx + bw, y + bh), kPanelEdge, bh * 0.5f, 0, 3 * s_);
+            y += bh + 24 * s_;
+            text_center(fonts.body, cx, y, art::kCream, human_bytes((double)d) + " of " + human_bytes((double)t));
+        } else {
+            art::spinner(dl, V(cx, y + 20 * s_), 30 * s_, t_, art::kBanana, 6 * s_);
+            y += 70 * s_;
+        }
+        y += fonts.body->FontSize + 16 * s_;
+        text_center(fonts.small, cx, y, art::kMuted, "Keep the launcher open. If anything goes wrong, your library stays where it was.", wrap);
+        return;
+    }
+    if (m.ok) {
+        text_center(fonts.body, cx, y, art::kCream, m.to, wrap);
+        y += fonts.body->FontSize + 12 * s_;
+        text_center(fonts.small, cx, y, art::kMuted, "Builds, saves and logs are there now, and the launcher will keep using that folder.", wrap);
+    } else {
+        text_center(fonts.big, cx, y, art::kCream, m.headline, wrap);
+        y += fonts.big->FontSize + 12 * s_;
+        if (!m.explain.empty()) text_center(fonts.small, cx, y, art::kMuted, m.explain, wrap);
+    }
+    float bh = 62 * s_;
+    if (button("##mvdone", "Done", V(cx - 140 * s_, mx.y - 34 * s_ - bh), V(280 * s_, bh), art::kBanana, true, fonts.big)) {
+        if (move_thread_.joinable()) move_thread_.join();
+        if (m.ok) lib_.relocate(m.to);
+        move_.reset();
+        finish_flow();
+        set_tab(Tab::About);
+    }
 }
 
 // ---- add your copy: the check
@@ -683,11 +932,22 @@ void Ui::draw_prepare(ImVec2 mn, ImVec2 mx) {
             done_w += w * frac;
         }
     }
-    float row_h = 56 * s_, bar_w = std::min(900 * s_, mx.x - mn.x - 2 * pad);
-    for (int i = 0; i < 4; i++) {
+    // Laid out from the bottom up, so nothing meets the button in any window: the button, the status line, the
+    // time, the percentage, the bar; the stage rows take what is left between the game name and the bar.
+    float bar_w = std::min(900 * s_, mx.x - mn.x - 2 * pad), obh = 26 * s_;
+    float btn_h = 60 * s_, btn_y = mx.y - 34 * s_ - btn_h;
+    float line_y = btn_y - 14 * s_ - fonts.small->FontSize;
+    float time_y = line_y - 8 * s_ - fonts.small->FontSize;
+    float pct_y = time_y - 6 * s_ - fonts.big->FontSize;
+    float bar_y = pct_y - 12 * s_ - obh;
+    float outcome_y = mx.y - 190 * s_;   // finished: the outcome takes the bar's place
+    float rows_end = std::min(bar_y, outcome_y) - 14 * s_;
+    int nrows = shaders_only ? 1 : 4;
+    float row_h = std::clamp((rows_end - y - 6 * s_) / nrows, 40 * s_, 56 * s_);
+    for (int i = 0, shown = 0; i < 4; i++) {
         if (shaders_only && rows[i].stage != PrepareJob::Shaders) continue;
-        float ry = y + 6 * s_ + i * row_h;   // right under the game name: four rows fit in a short window
-        if (ry + row_h > mx.y - 150 * s_) break;
+        float ry = y + 6 * s_ + shown++ * row_h;   // right under the game name
+        if (ry + row_h > rows_end + 1) break;
         bool is_done = stage > rows[i].stage || (!running && prep_->outcome().ok);
         bool is_run = stage == rows[i].stage && running;
         float x = cx - bar_w * 0.5f;
@@ -708,17 +968,17 @@ void Ui::draw_prepare(ImVec2 mn, ImVec2 mx) {
             text_at(fonts.small, V(bx - text_size(fonts.small, t2).x - 14 * s_, ry + row_h * 0.5f - fonts.small->FontSize * 0.5f), art::kMuted, t2);
         }
     }
-    y = mx.y - 190 * s_;
+    y = bar_y;
     // one overall bar: elapsed and the estimate from the work so far
     double overall = total_w > 0 ? done_w / total_w : 0;
-    float obh = 26 * s_, obx = cx - bar_w * 0.5f;
+    float obx = cx - bar_w * 0.5f;
     if (running) {   // finished: the stage rows say it all, and the outcome takes the bar's place (short windows)
         dl->AddRectFilled(V(obx, y), V(obx + bar_w, y + obh), IM_COL32(0, 0, 0, 140), obh * 0.5f);
         if (overall > 0) dl->AddRectFilled(V(obx, y), V(obx + std::max(obh, (float)(bar_w * overall)), y + obh), art::kBanana, obh * 0.5f);
         dl->AddRect(V(obx, y), V(obx + bar_w, y + obh), kPanelEdge, obh * 0.5f, 0, 2.5f * s_);
         char pcts[160];
         snprintf(pcts, sizeof pcts, "%.0f%%", overall * 100);
-        text_center(fonts.big, cx, y + obh + 12 * s_, art::kCream, pcts);
+        text_center(fonts.big, cx, pct_y, art::kCream, pcts);
     }
     if (running) {
         // elapsed mm:ss + about N left (the shaders report their own estimate)
@@ -729,18 +989,23 @@ void Ui::draw_prepare(ImVec2 mn, ImVec2 mx) {
         char ts[128];
         if (eta >= 0) snprintf(ts, sizeof ts, "%d:%02d elapsed  ·  about %d:%02d left", (int)elapsed / 60, (int)elapsed % 60, (int)eta / 60, (int)eta % 60);
         else snprintf(ts, sizeof ts, "%d:%02d elapsed", (int)elapsed / 60, (int)elapsed % 60);
-        text_center(fonts.small, cx, y + obh + 52 * s_, art::kMuted, ts);
+        text_center(fonts.small, cx, time_y, art::kMuted, ts);
         std::string line = prep_->line();
-        text_center(fonts.small, cx, y + obh + 78 * s_, alpha(art::kCream, 0.55f), line, bar_w);
-        float bh2 = 60 * s_;
-        if (button("##pcancel", "Cancel", V(cx - 120 * s_, mx.y - 34 * s_ - bh2), V(240 * s_, bh2), IM_COL32(90, 60, 34, 255), true, fonts.big))
+        if (text_size(fonts.small, line).x > bar_w) {   // one line: shortened at a character boundary
+            size_t n = line.size();
+            while (n > 8 && text_size(fonts.small, line.substr(0, n) + "…").x > bar_w)
+                for (n--; n > 0 && ((unsigned char)line[n] & 0xC0) == 0x80; n--) {}
+            line = line.substr(0, n) + "…";
+        }
+        text_center(fonts.small, cx, line_y, alpha(art::kCream, 0.55f), line);
+        if (button("##pcancel", "Cancel", V(cx - 120 * s_, btn_y), V(240 * s_, btn_h), IM_COL32(90, 60, 34, 255), true, fonts.big))
             prep_->cancel();
         return;
     }
     // the outcome, in plain words
     const PrepareJob::Outcome &out = prep_->outcome();
     bool ok = out.ok;
-    float oy = y;
+    float oy = outcome_y;
     if (ok || out.kind == "cancelled") {
         const char *title = ok ? "Done — ready to play" : "Cancelled";
         if (ok) art::icon_check(dl, V(cx - text_size(fonts.big, title).x * 0.5f - 30 * s_, oy + fonts.big->FontSize * 0.5f), 18 * s_, art::kGood);
@@ -1372,7 +1637,7 @@ void Ui::draw_about(ImVec2 mn, ImVec2 mx) {
     y += fonts.title->FontSize + 10 * s_;
     auto para = [&](ImFont *f, ImU32 c, const std::string &t) {
         text_at(f, V(x, y), c, t, wrap);
-        y += text_size(f, t, wrap).y + 12 * s_;
+        y += text_size(f, t, wrap).y + 8 * s_;
     };
     para(fonts.body, art::kCream,
          "Plays Donkey Kong Country Returns HD and Donkey Kong Country: Tropical Freeze natively on Linux and the Steam Deck, "
@@ -1380,7 +1645,6 @@ void Ui::draw_about(ImVec2 mn, ImVec2 mx) {
     para(fonts.small, alpha(art::kCream, 0.85f),
          "Country-Box contains no game files and never downloads, unpacks or decrypts any. Your saves and settings stay with your game "
          "and are never touched by an update.");
-    y += 6 * s_;
     text_at(fonts.big, V(x, y), art::kBanana, "Updates");
     y += fonts.big->FontSize + 6 * s_;
     para(fonts.body, art::kCream,
@@ -1401,8 +1665,16 @@ void Ui::draw_about(ImVec2 mn, ImVec2 mx) {
     } else {
         if (button("##upd", "Check for updates", V(x, y), V(320 * s_, 54 * s_), kButton, true, fonts.body)) start_update_check();
     }
-    y += 54 * s_ + 22 * s_;
-    para(fonts.small, art::kMuted, "Library: " + lib_.home() + "    Logs: " + lib_.home() + "/logs");
+    {   // next to the update button: moving the library
+        bool can = !launcher_home_fixed() && !lib_.any_running() && !prep_ && !update_;
+        if (button("##movelib", "Move library…", V(x + 340 * s_, y), V(260 * s_, 54 * s_), kButton, can, fonts.body)) start_library_browse();
+    }
+    y += 54 * s_ + 12 * s_;
+    {   // the library's folder (relocate.h)
+        std::string why = launcher_home_fixed() ? "  (set by --home or CB_LAUNCHER_HOME for this run)"
+                          : lib_.any_running()  ? "  (close the game to move it)" : "";
+        para(fonts.small, art::kMuted, "Library (builds, saves, logs): " + lib_.home() + why);
+    }
     para(fonts.small, art::kMuted,
          "Built on Metroid Prime 4 Recomp (Jeff Aigner), fe3h-pc-recomp, totk-pc-recomp and LAS Recomp (MIT); SDL 3 (zlib); "
          "Dear ImGui (MIT); Roboto (Apache-2.0). Game names belong to their owners; Country-Box is not affiliated with them.");

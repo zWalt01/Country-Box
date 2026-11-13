@@ -52,7 +52,7 @@ Other regions usually ship the same files on Switch; the launcher checks your co
 Updates install themselves and rebuild only what changed. Using an AI agent? Give it
 [AGENT-INSTALL.md](AGENT-INSTALL.md). Full details: [docs/INSTALL.md](docs/INSTALL.md).
 
-## Status — version 1.0.3
+## Status — version 1.0.4
 
 | | Returns HD | Tropical Freeze |
 |---|---|---|
@@ -61,6 +61,7 @@ Updates install themselves and rebuild only what changed. Using an AI agent? Giv
 | Steam Deck | 60 fps with the APU at 8–9 W | plays well |
 | Shaders | all prepared before you play | some still compile while a level loads — short pauses ([known issue](docs/KNOWN-ISSUES.md)) |
 | 16:10 screen | 16:9 | ✅ native 16:10 |
+| Save states | 🧪 experimental, not deeply tested: F5 / F6, or Select+Start → menu ([feedback wanted](docs/KNOWN-ISSUES.md)) | 🧪 experimental, not deeply tested: F5 / F6, or Select+Start → menu |
 
 How each number was measured: [docs/TESTING.md](docs/TESTING.md).
 

@@ -1,6 +1,7 @@
 // Country-Box launcher: the player's library. Where each game's checked copy and its build (the recompiled game
-// binary, country-box) live, and the state each card shows. Kept in <home>/library.ini, where home is
-// CB_LAUNCHER_HOME, else $XDG_DATA_HOME/country-box, else ~/.local/share/country-box.
+// binary, country-box) live, and the state each card shows. Kept in <home>/library.ini, where home is --home or
+// CB_LAUNCHER_HOME, else the folder the player moved it to (relocate.h), else $XDG_DATA_HOME/country-box, else
+// ~/.local/share/country-box.
 //
 // Designed for the later milestones: a build is normally <home>/games/<game>/ (what setup will write when it
 // recompiles or copies a prebuilt build); "build = <dir>" in the library points at another one. Saves and settings
@@ -72,6 +73,7 @@ public:
     bool settings_set(const Game &g, const std::vector<std::string> &pairs, Json &out, std::string *err) const;
 
     std::string status_json();         // the command line's --status
+    void relocate(const std::string &home);   // the library was moved there (relocate.h): read it again
 
 private:
     std::string home_;

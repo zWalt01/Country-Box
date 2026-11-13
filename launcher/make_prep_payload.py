@@ -75,7 +75,7 @@ def main():
         (out / 'build' / 'xlate' / name).chmod(0o755 if name == 'mp4_xlate' else 0o644)
     shutil.copy2(ROOT / 'VERSION', out / 'VERSION')
     # requirements.txt: only what Prepare's Python needs (the lifter), pinned; the hint names the exact commands
-    (out / 'requirements.txt').write_text('capstone==5.0.9\nlz4==4.4.5\nnumpy==2.5.4\nunicorn==2.1.4\n')
+    (out / 'requirements.txt').write_text('capstone==5.0.9\nnumpy==2.5.4\nunicorn==2.1.4\n')
     # lifter.id: what Prepare compares to decide whether a lift must run again
     h = hashlib.sha256()
     for p in sorted((out / 'core' / 'recomp').rglob('*.py')):

@@ -34,6 +34,7 @@ extern "C" {
 #include "perfmon.h"
 #include "settings.h"
 #include "platform/platform.h"
+#include "savestate.h"
 #include "sysinfo.h"
 #include "ui/menu.h"
 #include "ui_text.h"
@@ -773,10 +774,25 @@ static void layout_menu(uint32_t w, uint32_t h, float scale) {
         ImGui::EndTabBar();
     }
 
-    // bottom row: the save status on the left, the two buttons on the right
+    // bottom row: the save states and the settings' save status on the left, the two buttons on the right
     ImGui::Spacing();
     float y = ImGui::GetCursorPosY();
+    {   // Country-Box: save states (savestate.c); each closes the menu, so the result shows on the game
+        int n = ss_count(), busy = ss_busy();
+        ImGui::BeginDisabled(busy);
+        if (ImGui::Button(menu_text(UI_MENU_STATE_SAVE))) ss_request_save(), set_open(0);
+        ImGui::SameLine();
+        ImGui::BeginDisabled(n < 1);
+        if (ImGui::Button(menu_text(UI_MENU_STATE_LOAD))) ss_request_load(0), set_open(0);
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::BeginDisabled(n < 2);
+        if (ImGui::Button(menu_text(UI_MENU_STATE_OLDER))) ss_request_load(1), set_open(0);
+        ImGui::EndDisabled();
+        ImGui::EndDisabled();
+    }
     if (!cfg_last_save_ok()) {   // stays until a save succeeds; the settings hold for the session
+        ImGui::SameLine();
         ImGui::SetCursorPosY(y + st.FramePadding.y);
         ImGui::TextColored(ImVec4(0.95f, 0.45f, 0.35f, 1), "%s", menu_text(UI_MENU_SAVE_FAILED));
     }
@@ -794,6 +810,29 @@ static void layout_menu(uint32_t w, uint32_t h, float scale) {
 }
 
 static int g_save_pending;   // a changed setting still waits for its write to mp4.ini (opt_save_tick)
+
+// Country-Box: the last save state result (savestate.c), at the top of the screen for a few seconds, menu open or not.
+#define STATE_NOTE_NS 2500000000ull
+static bool state_note_on(void) {
+    char msg[8];
+    uint64_t at;
+    int ok;
+    ss_status(msg, sizeof msg, &at, &ok);
+    return at && plat_now_ns() - at < STATE_NOTE_NS;
+}
+
+static void state_note_draw(uint32_t w, float scale) {
+    char msg[256];
+    uint64_t at;
+    int ok;
+    ss_status(msg, sizeof msg, &at, &ok);
+    if (!at || plat_now_ns() - at >= STATE_NOTE_NS) return;
+    ImDrawList *dl = ImGui::GetForegroundDrawList();
+    ImVec2 ts = ImGui::CalcTextSize(msg), pad(14 * scale, 8 * scale);
+    float x = (w - ts.x) * 0.5f - pad.x, y = 24 * scale;
+    dl->AddRectFilled(ImVec2(x, y), ImVec2(x + ts.x + pad.x * 2, y + ts.y + pad.y * 2), IM_COL32(0, 0, 0, 190), 8 * scale);
+    dl->AddText(ImVec2(x + pad.x, y + pad.y), ok ? IM_COL32(240, 240, 240, 255) : IM_COL32(242, 115, 90, 255), msg);
+}
 
 // ---- the performance overlay (MP4_PERF_OVERLAY), in the top right corner. "fps": the frame rate over the presents of
 // the last half second. "full": a panel of perfmon.c's numbers, in the style of SavageWindRecomp's perf_overlay_draw
@@ -1169,7 +1208,7 @@ extern "C" int menu_overlay_frame(uint64_t frame, const MenuTarget *t, const cha
             g_tab_request = 0;
             set_open(1);
             open = true;
-        } else if (!g_perf_mode) {
+        } else if (!g_perf_mode && !state_note_on()) {
             return 0;
         }
     }
@@ -1223,6 +1262,7 @@ extern "C" int menu_overlay_frame(uint64_t frame, const MenuTarget *t, const cha
     else if (entry) layout_entry(t->width, t->height, scale);
     else if (open) layout_menu(t->width, t->height, scale);
     if (!prep) perf_draw(t, scale);
+    if (!prep) state_note_draw(t->width, scale);
     ImGui::Render();
     if (open) g_save_pending = opt_save_tick(0);
     g_cost_ns += plat_now_ns() - t0;

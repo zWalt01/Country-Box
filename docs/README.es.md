@@ -54,7 +54,7 @@ En Switch, las otras regiones suelen traer los mismos archivos; el launcher revi
 Las actualizaciones se instalan solas y sólo recompilan lo que cambió. ¿Usas un agente de IA? Dale
 [AGENT-INSTALL.md](../AGENT-INSTALL.md). Todos los detalles: [INSTALL.md](INSTALL.md).
 
-## Estado — versión 1.0.3
+## Estado — versión 1.0.4
 
 | | Returns HD | Tropical Freeze |
 |---|---|---|
@@ -63,6 +63,7 @@ Las actualizaciones se instalan solas y sólo recompilan lo que cambió. ¿Usas 
 | Steam Deck | 60 fps con la APU a 8–9 W | se juega bien |
 | Shaders | todos preparados antes de jugar | algunos se compilan al cargar un nivel: pausas cortas ([problema conocido](KNOWN-ISSUES.md)) |
 | Pantalla 16:10 | 16:9 | ✅ 16:10 nativo |
+| Estados de guardado | 🧪 experimental, sin pruebas a fondo: F5 / F6, o Select+Start → menú ([se busca opinión](KNOWN-ISSUES.md), en inglés) | 🧪 experimental, sin pruebas a fondo: F5 / F6, o Select+Start → menú |
 
 Cómo se midió cada cifra: [TESTING.md](TESTING.md) (en inglés).
 

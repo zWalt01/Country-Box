@@ -7,7 +7,7 @@
 #   [GAME=dkctf] launcher/tests/screenshots-prepare.sh OUT COPY PAYLOAD PYTHON
 #
 # COPY: an extracted copy of GAME (exefs/ + romfs/; GAME defaults to dkcrhd — dkctf is the smaller run);
-# PAYLOAD: a prep/ payload (launcher/make_prep_payload.py); PYTHON: a python3 with capstone/unicorn/lz4/numpy
+# PAYLOAD: a prep/ payload (launcher/make_prep_payload.py); PYTHON: a python3 with capstone/unicorn/numpy (lz4 opcional)
 # (the lifter's). CB_PREP_JOBS sets -j for the real run.
 set -eu
 out=$1 rcopy=$2 payload=$3 pypath=$4 game=${GAME:-dkcrhd}

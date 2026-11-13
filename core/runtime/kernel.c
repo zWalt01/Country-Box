@@ -25,6 +25,7 @@
 #include <setjmp.h>
 #include <signal.h>
 #include <sys/mman.h>
+#include <sys/prctl.h>
 #include <time.h>
 #include <ucontext.h>
 #include <unistd.h>
@@ -36,6 +37,7 @@
 #include "host.h"
 #include "kernel.h"
 #include "platform/platform.h"
+#include "savestate.h"
 
 #undef R_OK   // unistd.h access() mode; here R_OK is the Horizon result 0
 #define R_OK 0u
@@ -129,6 +131,18 @@ struct RtThread {
     uint32_t dg_svc;           // the thread's latest SVC (MP4_CORE_DIAG: what an owner in a host call is in)
     struct DgRel { uint64_t kick, host_end, pc, lr; int host, pre, prio; uint32_t h; } dg_rel;   // as a waiter: the
                                                                                                  // owner that released
+    // Country-Box: save states (ss_poll below). These fields survive a state restore (ss_keep_fields).
+    int ss_at;                 // waiting in ss_poll while a freeze is on
+    int ss_cmd, ss_done;       // SS_CAPTURE / SS_RESTORE asked of the thread, and done
+    uint64_t ss_hi;            // top of the host stack a state copies: thread_main's / guest_main's frame
+    void *ss_sp;               // the thread's saved context (kern_ctx_switch) while its helper copies the stack
+    void *ss_alt_sp;           // the helper context (ss_alt_main) on its own small stack
+    uint8_t *ss_alt;
+    uint8_t *ss_buf;           // SS_CAPTURE: the stack bytes from ss_sp to ss_hi
+    size_t ss_n;
+    void *ss_load_sp;          // SS_RESTORE: the context and stack bytes to go back to
+    const uint8_t *ss_load_buf;
+    size_t ss_load_n;
 };
 
 static PlatMutex G = PLAT_MUTEX_INIT;
@@ -142,6 +156,14 @@ static uint64_t g_main_stack;
 
 static void lock(void) { plat_mutex_lock(&G); }
 static void unlock(void) { plat_mutex_unlock(&G); }
+
+// Country-Box: save states (the "save states" section at the end). Every place a guest thread waits under G calls
+// ss_poll, which holds the thread there while a freeze is on.
+static volatile int g_ss_phase;   // 0 off; else a freeze is on (holding G to write)
+static int g_ss_keep;             // a state was captured: handle objects are not freed (they may come back)
+static void ss_poll(RtThread *t);
+static int ss_defer_close(int kind, void *obj, uint32_t h);
+static int ss_on(void) { return __atomic_load_n(&g_ss_phase, __ATOMIC_ACQUIRE) != 0; }
 
 uint64_t kern_now_ns(void) { return plat_now_ns(); }
 
@@ -287,6 +309,10 @@ static uint32_t block_inner(RtThread *t, int kind, int64_t ns) {
     int forever = ns < 0 || (uint64_t)ns > UINT64_MAX - now;
     uint64_t deadline = forever ? 0 : now + (uint64_t)ns;
     while (!t->woke) {
+        if (ss_on()) {   // Country-Box: a save state freezes the thread here (ss_poll)
+            ss_poll(t);
+            continue;
+        }
         if (forever) {
             plat_cond_wait(&t->cv, &G);
             continue;
@@ -1134,6 +1160,10 @@ static void core_take(RtThread *t) {
     }
     int sampled = 0;
     while (t->cur_core < 0) {
+        if (ss_on()) {   // Country-Box: a save state freezes the thread here (ss_poll)
+            ss_poll(t);
+            continue;
+        }
         uint64_t ns = 0;   // 0: until woken
         if (g_ap_int && ap_try(t) != AP_NONE) ns = 1000000;   // the owner keeps its core: again in a millisecond
         int sample = g_diag > 0 && !sampled && (t->dg_cls == DG_GAME || t->dg_cls == DG_HOST);
@@ -1223,6 +1253,11 @@ void rt_spin_gate(Cpu *c, uint64_t head) {
         sw_t0 = now;
     }
     sw_last = now;
+    if (ss_on()) {   // Country-Box: a save state's freeze also stops a spinning thread (what it waits for is frozen)
+        lock();
+        ss_poll(t);
+        unlock();
+    }
     if (!g_spin_on || t->cur_core < 0 || now - sw_t0 < g_spin_handoff_ns ||
         !__atomic_load_n(&g_core_wait, __ATOMIC_RELAXED))   // a racy look: a waiter missed now is seen at the next pass
         return;
@@ -1246,7 +1281,10 @@ static void suspend_park(RtThread *t) {   // holding G
     core_put(t);
     t->parked = 1;
     plat_cond_broadcast(&g_susp_cv);
-    while (t->susp_req && !t->cancel) plat_cond_wait(&t->cv, &G);
+    while (t->susp_req && !t->cancel) {
+        if (ss_on()) ss_poll(t);   // Country-Box: a save state freezes the thread here
+        else plat_cond_wait(&t->cv, &G);
+    }
     t->parked = 0;
     core_take(t);
 }
@@ -1265,9 +1303,10 @@ void kern_svc_enter(void) {
 void kern_svc_leave(void) {
     RtThread *t = tcur;
     if (!t) return;
-    if (__atomic_load_n(&t->susp_req, __ATOMIC_ACQUIRE) && t->in_svc == 1) {
+    if ((__atomic_load_n(&t->susp_req, __ATOMIC_ACQUIRE) || ss_on()) && t->in_svc == 1) {
         lock();
         if (t->susp_req) suspend_park(t);
+        if (ss_on()) ss_poll(t);   // Country-Box: a save state freezes the thread at the end of its SVC
         unlock();
     }
     __atomic_store_n(&t->in_svc, t->in_svc - 1, __ATOMIC_RELEASE);
@@ -1303,6 +1342,11 @@ static uint32_t get_context(uint64_t out, uint32_t h) {
     }
     uint64_t t0 = kern_now_ns(), end = t0 + 5000000000ull;
     while (!t->parked && !__atomic_load_n(&t->in_svc, __ATOMIC_ACQUIRE) && !t->exited) {
+        if (ss_on() && tcur) {   // Country-Box: a save state freezes the caller too; its time does not count
+            ss_poll(tcur);
+            end = kern_now_ns() + 5000000000ull;
+            continue;
+        }
         if (kern_now_ns() > end)
             rt_fatal("kernel: GetThreadContext3: thread %#x reached no SVC or indirect call within 5 s of its pause",
                      t->handle);
@@ -1336,6 +1380,7 @@ void kern_checkpoint(void) {
     if (!t || !__atomic_load_n(&t->preempt, __ATOMIC_RELAXED)) return;
     lock();
     if (t->susp_req) suspend_park(t);   // a pause (SetThreadActivity) waits here, at a whole context
+    if (ss_on()) ss_poll(t);            // Country-Box: so does a save state's freeze
     if (g_diag > 0 && t->cur) {
         t->dg_pc = t->cur->pc;
         t->dg_lr = t->cur->x[30];
@@ -1736,9 +1781,13 @@ static void *thread_main(void *p) {
     char nm[16];   // Country-Box: "g<handle> p<priority>" in /proc and debuggers (dkcr_tools.c per-thread CPU time)
     snprintf(nm, sizeof nm, "g%x p%d", t->handle, t->prio);
     pthread_setname_np(pthread_self(), nm);
+    t->ss_hi = (uint64_t)(uintptr_t)__builtin_frame_address(0);   // Country-Box: a save state copies the stack below
     lock();
     ap_self(t);
-    while (!t->started) plat_cond_wait(&t->cv, &G);
+    while (!t->started) {
+        if (ss_on()) ss_poll(t);   // Country-Box: a save state freezes a thread not started yet here
+        else plat_cond_wait(&t->cv, &G);
+    }
     core_take(t);
     unlock();
     Cpu *c = t->cpu;
@@ -1804,6 +1853,7 @@ static void *guest_main(void *p) {
     plat_signal_stack(alt, sizeof alt);
     Cpu *c;
     kern_main_thread(&c);
+    tcur->ss_hi = (uint64_t)(uintptr_t)__builtin_frame_address(0);   // Country-Box: a save state copies the stack below
     pthread_setname_np(pthread_self(), "guest-main");   // Country-Box: nnMain's thread (Unity's main thread)
     if (!setjmp(tcur->exit_jmp)) fn(c);
     thread_finish(tcur);
@@ -1870,12 +1920,13 @@ static uint32_t handle_close(uint32_t h) {
         void *o = g_h[i].obj;
         if (type == O_EVENT_R || type == O_EVENT_W) {
             Event *e = o;
-            if (--e->refs == 0) free(e);
+            if (--e->refs == 0 && !g_ss_keep) free(e);   // Country-Box: kept once a save state may bring it back
             ok = 1;
         } else if (type == O_SESSION || type == O_TMEM) {
             kind = type;
             ipc = o;
             ok = 1;
+            if (g_ss_keep && ss_defer_close(kind, ipc, h)) ipc = NULL;   // Country-Box: closed once no state has it
         } else if (type == O_THREAD) {
             RtThread *t = o;
             t->closed = 1;
@@ -2608,3 +2659,395 @@ HOST_OVERRIDE(KERN_SYM_INITIALIZE_FIBER, kern_fiber_initialize);
 HOST_OVERRIDE(KERN_SYM_FINALIZE_FIBER, kern_fiber_finalize);
 HOST_OVERRIDE(KERN_SYM_SWITCH_TO_FIBER, kern_fiber_switch);
 HOST_OVERRIDE(KERN_SYM_GET_CURRENT_FIBER, kern_fiber_current);
+
+// ---- Country-Box: save states (savestate.h, savestate.c)
+// A frozen guest thread waits in ss_poll, holding nothing but its place in a wait under G: its guest registers are in
+// its Cpu or in the lifted frames of its host stack, and every kernel fact about it (wait, core, wake result) is in
+// its RtThread and the tables below. So a thread's state is its host stack from the frozen point up to its start
+// frame (ss_hi), plus those structures. To copy the stack out or back the thread switches (kern_ctx_switch, which
+// keeps the callee-saved registers, x87 control word and MXCSR on the stack) to a helper context on a small stack of
+// its own; the helper copies, then switches back to the saved context: after a restore that is the context the
+// capture left, so the thread goes on from the point it was frozen at when the state was saved. Everything under G.
+enum { SS_NONE, SS_CAPTURE, SS_RESTORE };
+#define SS_ALT_STACK (256u << 10)
+static PlatCond g_ss_cv = PLAT_COND_INIT;   // a thread reached ss_poll or finished a copy
+
+typedef struct { int type; void *obj; } SsHandle;
+static SsHandle *g_ss_tab[SS_SLOTS];        // the handle table of each kept state: its objects are not released
+#define SS_DEFER_MAX 4096
+static struct { int kind; void *obj; } g_ss_def[SS_DEFER_MAX];   // sessions and transfer memory closed while kept
+static int g_ss_ndef;
+
+void kern_ss_alt_start(void);
+void kern_ss_alt_main(RtThread *t);
+__asm__(".text\n"
+        ".globl kern_ss_alt_start\n"
+        ".type kern_ss_alt_start, @function\n"
+        ".p2align 4\n"
+        "kern_ss_alt_start:\n"
+        "    movq %r12, %rdi\n"
+        "    call kern_ss_alt_main\n"
+        "    ud2\n"
+        ".size kern_ss_alt_start, .-kern_ss_alt_start\n");
+
+// The helper context: copies the thread's stack out (SS_CAPTURE) or the captured one back in (SS_RESTORE) and returns
+// to the thread's context, or to the captured one.
+__attribute__((noreturn)) void kern_ss_alt_main(RtThread *t) {
+    for (;;) {
+        void *back;
+        if (t->ss_cmd == SS_RESTORE) {
+            memcpy(t->ss_load_sp, t->ss_load_buf, t->ss_load_n);
+            back = t->ss_load_sp;
+        } else {
+            size_t n = (size_t)(t->ss_hi - (uint64_t)(uintptr_t)t->ss_sp);
+            t->ss_buf = malloc(n);
+            if (t->ss_buf) memcpy(t->ss_buf, t->ss_sp, n);
+            t->ss_n = t->ss_buf ? n : 0;
+            back = t->ss_sp;
+        }
+        kern_ctx_switch(&t->ss_alt_sp, back);
+    }
+}
+
+static void *ss_alt(RtThread *t) {   // the helper context, made at the first use (same slot layout as fiber_host_new)
+    if (!t->ss_alt_sp) {
+        if (!t->ss_alt && !(t->ss_alt = aligned_alloc(64, SS_ALT_STACK))) rt_fatal("kernel: save state helper stack");
+        uint64_t *sp = (uint64_t *)(t->ss_alt + SS_ALT_STACK) - 9;
+        sp[0] = 0x037F | (uint64_t)0x1F80 << 32;
+        sp[1] = 0x1F80;
+        sp[2] = sp[3] = sp[4] = sp[6] = sp[7] = 0;
+        sp[5] = (uint64_t)(uintptr_t)t;                 // r12
+        sp[8] = (uint64_t)(uintptr_t)kern_ss_alt_start;  // ret
+        t->ss_alt_sp = sp;
+    }
+    return t->ss_alt_sp;
+}
+
+static void ss_poll(RtThread *t) {   // holding G
+    if (!ss_on()) return;
+    t->ss_at = 1;
+    plat_cond_broadcast(&g_ss_cv);
+    while (ss_on()) {
+        if (t->ss_cmd != SS_NONE) {
+            kern_ctx_switch(&t->ss_sp, ss_alt(t));
+            // Here after the copy out, or, after a restore, in the frame the capture of the loaded state left.
+            t->ss_cmd = SS_NONE;
+            t->ss_done = 1;
+            plat_cond_broadcast(&g_ss_cv);
+            continue;
+        }
+        plat_cond_wait(&t->cv, &G);
+    }
+    t->ss_at = 0;
+}
+
+static void ss_wake_all(void) {   // holding G
+    for (RtThread *t = g_all; t; t = t->all) plat_cond_broadcast(&t->cv);
+}
+
+int kern_ss_freeze(uint64_t timeout_ns, char *why, size_t wn) {
+    for (int i = 0; i < FIBER_MAX; i++)
+        if (__atomic_load_n(&g_fibers[i], __ATOMIC_ACQUIRE)) {
+            snprintf(why, wn, "the game uses guest fibers, which save states do not cover yet");
+            return -1;
+        }
+    lock();
+    if (ss_on()) {
+        unlock();
+        snprintf(why, wn, "a save or load is already running");
+        return -1;
+    }
+    __atomic_store_n(&g_ss_phase, 1, __ATOMIC_RELEASE);
+    uint64_t end = kern_now_ns() + timeout_ns;
+    for (;;) {
+        RtThread *late = NULL;
+        for (RtThread *t = g_all; t; t = t->all) {
+            if (t->exited || t->ss_at) continue;
+            late = t;
+            __atomic_store_n(&t->preempt, 1, __ATOMIC_RELEASE);   // stops at its next SVC or indirect call
+            plat_cond_broadcast(&t->cv);
+        }
+        if (!late) break;
+        if (kern_now_ns() > end) {
+            snprintf(why, wn, "guest thread %#x (priority %d, in an SVC %d, host calls %d) reached no stop point within "
+                     "%llu ms", late->handle, late->prio, late->in_svc, late->host_depth,
+                     (unsigned long long)(timeout_ns / 1000000));
+            if (getenv("CB_SS_DIAG")) {   // where it is (development: eu-stack of that host thread)
+                char cmd[256];
+                snprintf(cmd, sizeof cmd, "eu-stack -p %d 2>&1 | sed -n '/^TID %u:/,/^TID/p' | head -40 >&2", getpid(),
+                         late->tid);
+                unlock();
+                prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0);
+                if (system(cmd)) {}
+                lock();
+            }
+            __atomic_store_n(&g_ss_phase, 0, __ATOMIC_RELEASE);
+            ss_wake_all();
+            unlock();
+            return -1;
+        }
+        plat_cond_wait_ns(&g_ss_cv, &G, 1000000);
+    }
+    unlock();
+    return 0;
+}
+
+int kern_ss_host_wait(void *m) {
+    RtThread *t = tcur;
+    if (!t || !ss_on()) return 0;
+    plat_mutex_unlock(m);
+    lock();
+    ss_poll(t);
+    unlock();
+    plat_mutex_lock(m);
+    return 1;
+}
+
+void kern_ss_thaw(void) {
+    lock();
+    __atomic_store_n(&g_ss_phase, 0, __ATOMIC_RELEASE);
+    ss_wake_all();
+    unlock();
+}
+
+// Asks every live thread for cmd and waits until each did it (holding G).
+static void ss_command(int cmd) {
+    for (RtThread *t = g_all; t; t = t->all) {
+        if (t->exited) continue;
+        t->ss_done = 0;
+        t->ss_cmd = cmd;
+        plat_cond_broadcast(&t->cv);
+    }
+    for (;;) {
+        int all = 1;
+        for (RtThread *t = g_all; t && all; t = t->all)
+            if (!t->exited && !t->ss_done) all = 0;
+        if (all) return;
+        plat_cond_wait(&g_ss_cv, &G);
+    }
+}
+
+typedef struct { uint64_t ptr, id, sp, n; uint32_t handle, pad; } SsThreadRec;
+typedef struct {
+    RtThread *wait, *main_t, *core_wait, *core_owner[NCORE];
+    uint64_t next_id, wseq, created;
+    int susp_paused, nse;
+} SsGlobals;
+
+static int ss_tab_has(const void *obj) {   // a handle of the live table or of a kept state names obj (holding G)
+    for (int i = 1; i < MAX_H; i++)
+        if (g_h[i].obj == obj) return 1;
+    for (int s = 0; s < SS_SLOTS; s++)
+        if (g_ss_tab[s])
+            for (int i = 1; i < MAX_H; i++)
+                if (g_ss_tab[s][i].obj == obj) return 1;
+    return 0;
+}
+
+static int ss_defer_close(int kind, void *obj, uint32_t h) {   // holding G
+    (void)h;
+    for (int i = 0; i < g_ss_ndef; i++)
+        if (g_ss_def[i].obj == obj) return 1;   // closed again after a load brought it back: once is enough
+    if (g_ss_ndef == SS_DEFER_MAX) return 0;   // full: closed now (a later load of a state naming it gets an error)
+    g_ss_def[g_ss_ndef].kind = kind;
+    g_ss_def[g_ss_ndef++].obj = obj;
+    return 1;
+}
+
+// The deferred closes no handle names any more: taken off the list into out (holding G); closed after the unlock.
+static int ss_defer_collect(int *kinds, void **objs) {
+    int n = 0;
+    for (int i = 0; i < g_ss_ndef;) {
+        if (ss_tab_has(g_ss_def[i].obj)) {
+            i++;
+            continue;
+        }
+        kinds[n] = g_ss_def[i].kind, objs[n++] = g_ss_def[i].obj;
+        g_ss_def[i] = g_ss_def[--g_ss_ndef];
+    }
+    return n;
+}
+
+static void ss_defer_release(void) {   // not holding G
+    static int kinds[SS_DEFER_MAX];
+    static void *objs[SS_DEFER_MAX];
+    static PlatMutex m = PLAT_MUTEX_INIT;
+    plat_mutex_lock(&m);
+    lock();
+    int n = ss_defer_collect(kinds, objs);
+    unlock();
+    for (int i = 0; i < n; i++) ipc_handle_closed(kinds[i], objs[i]);
+    plat_mutex_unlock(&m);
+}
+
+int kern_ss_capture(SsBuf *out, int slot, char *why, size_t wn) {
+    lock();
+    for (RtThread *t = g_all; t; t = t->all)
+        if (!t->exited && !t->ss_hi) {
+            unlock();
+            snprintf(why, wn, "guest thread %#x has not reached its start frame", t->handle);
+            return -1;
+        }
+    ss_command(SS_CAPTURE);
+    uint32_t n = 0;
+    for (RtThread *t = g_all; t; t = t->all)
+        if (!t->exited) {
+            if (!t->ss_buf) {
+                for (RtThread *u = g_all; u; u = u->all) free(u->ss_buf), u->ss_buf = NULL;
+                unlock();
+                snprintf(why, wn, "out of memory copying the stack of thread %#x", t->handle);
+                return -1;
+            }
+            n++;
+        }
+    ss_buf_put(out, &n, sizeof n);
+    for (RtThread *t = g_all; t; t = t->all) {
+        if (t->exited) continue;
+        SsThreadRec r = {(uint64_t)(uintptr_t)t, t->id, (uint64_t)(uintptr_t)t->ss_sp, t->ss_n, t->handle, 0};
+        ss_buf_put(out, &r, sizeof r);
+        ss_buf_put(out, t, sizeof *t);
+        ss_buf_put(out, t->cpu, sizeof *t->cpu);
+        ss_buf_put(out, t->ss_buf, t->ss_n);
+        free(t->ss_buf);
+        t->ss_buf = NULL;
+    }
+    ss_buf_put(out, g_h, sizeof g_h);
+    uint32_t nev = 0;
+    for (int i = 1; i < MAX_H; i++) nev += g_h[i].type == O_EVENT_R || g_h[i].type == O_EVENT_W;
+    ss_buf_put(out, &nev, sizeof nev);
+    for (int i = 1; i < MAX_H; i++)
+        if (g_h[i].type == O_EVENT_R || g_h[i].type == O_EVENT_W) {
+            uint32_t at = (uint32_t)i;
+            ss_buf_put(out, &at, sizeof at);
+            ss_buf_put(out, g_h[i].obj, sizeof(Event));
+        }
+    SsGlobals g = {g_wait, g_main, g_core_wait, {0}, g_next_id, g_wseq, g_created, g_susp_paused, 0};
+    memcpy(g.core_owner, g_core_owner, sizeof g_core_owner);
+    plat_mutex_lock(&g_se_lock);
+    g.nse = g_nse;
+    ss_buf_put(out, &g, sizeof g);
+    ss_buf_put(out, g_se, sizeof g_se);
+    plat_mutex_unlock(&g_se_lock);
+    if (slot >= 0 && slot < SS_SLOTS) {
+        if (!g_ss_tab[slot] && !(g_ss_tab[slot] = malloc(sizeof g_h))) rt_fatal("kernel: save state handle table");
+        memcpy(g_ss_tab[slot], g_h, sizeof g_h);
+    }
+    g_ss_keep = 1;
+    unlock();
+    ss_defer_release();
+    return 0;
+}
+
+// Walks a capture: calls fn for each thread record with its saved structures and stack.
+typedef struct { SsThreadRec r; const RtThread *t; const Cpu *cpu; const uint8_t *stack; } SsThreadView;
+static int ss_threads(SsIn *in, SsThreadView *v, uint32_t max, uint32_t *n) {
+    if (!ss_in_get(in, n, sizeof *n) || *n > max) return 0;
+    for (uint32_t i = 0; i < *n; i++) {
+        const SsThreadRec *r = ss_in_take(in, sizeof *r);
+        if (!r) return 0;
+        v[i].r = *r;
+        if (!(v[i].t = ss_in_take(in, sizeof(RtThread))) || !(v[i].cpu = ss_in_take(in, sizeof(Cpu))) ||
+            !(v[i].stack = ss_in_take(in, (size_t)r->n)))
+            return 0;
+    }
+    return 1;
+}
+
+#define SS_MAX_THREADS 512
+int kern_ss_check(SsIn in, char *why, size_t wn) {
+    static SsThreadView v[SS_MAX_THREADS];
+    uint32_t n;
+    if (!ss_threads(&in, v, SS_MAX_THREADS, &n)) {
+        snprintf(why, wn, "the state's thread records are damaged");
+        return 0;
+    }
+    lock();
+    uint32_t live = 0;
+    for (RtThread *t = g_all; t; t = t->all) live += !t->exited;
+    int ok = 1;
+    for (uint32_t i = 0; i < n && ok; i++) {
+        RtThread *t = NULL;
+        for (RtThread *u = g_all; u && !t; u = u->all)
+            if ((uint64_t)(uintptr_t)u == v[i].r.ptr) t = u;
+        if (!t || t->id != v[i].r.id || t->handle != v[i].r.handle || t->exited) {
+            snprintf(why, wn, "guest thread %#x ended since this state was saved", v[i].r.handle);
+            ok = 0;
+        } else if (t->ss_hi != v[i].t->ss_hi) {
+            snprintf(why, wn, "guest thread %#x runs on another host stack", v[i].r.handle);
+            ok = 0;
+        }
+    }
+    if (ok && live != n) {
+        snprintf(why, wn, "the game started %u thread(s) since this state was saved", live > n ? live - n : 0);
+        ok = 0;
+    }
+    unlock();
+    return ok;
+}
+
+// The saved structure, except what belongs to the live host thread: its condition variable, pthread and host thread
+// id, the save state bookkeeping and the list of every thread (the same threads; the wait lists come back saved).
+static void ss_thread_put_back(RtThread *t, const RtThread *s) {
+    RtThread keep;
+    memcpy(&keep, t, sizeof keep);
+    size_t cv0 = offsetof(RtThread, cv), cv1 = cv0 + sizeof(PlatCond);
+    memcpy(t, s, cv0);
+    memcpy((uint8_t *)t + cv1, (const uint8_t *)s + cv1, sizeof *t - cv1);
+    t->all = keep.all;
+    t->pth = keep.pth, t->has_pth = keep.has_pth, t->tid = keep.tid;
+    t->ss_at = keep.ss_at, t->ss_cmd = keep.ss_cmd, t->ss_done = keep.ss_done, t->ss_hi = keep.ss_hi;
+    t->ss_sp = keep.ss_sp, t->ss_alt_sp = keep.ss_alt_sp, t->ss_alt = keep.ss_alt, t->ss_buf = keep.ss_buf;
+    t->ss_n = keep.ss_n;
+    t->ss_load_sp = keep.ss_load_sp, t->ss_load_buf = keep.ss_load_buf, t->ss_load_n = keep.ss_load_n;
+}
+
+void kern_ss_restore(SsIn in) {
+    static SsThreadView v[SS_MAX_THREADS];
+    uint32_t n;
+    if (!ss_threads(&in, v, SS_MAX_THREADS, &n)) rt_fatal("kernel: save state: thread records damaged after the check");
+    const void *h = ss_in_take(&in, sizeof g_h);
+    uint32_t nev;
+    if (!h || !ss_in_get(&in, &nev, sizeof nev)) rt_fatal("kernel: save state: tables damaged after the check");
+    lock();
+    memcpy(g_h, h, sizeof g_h);
+    for (uint32_t i = 0; i < nev; i++) {
+        uint32_t at;
+        const Event *e;
+        if (!ss_in_get(&in, &at, sizeof at) || !(e = ss_in_take(&in, sizeof *e)) || at >= MAX_H)
+            rt_fatal("kernel: save state: event records damaged");
+        memcpy(g_h[at].obj, e, sizeof *e);   // still allocated: events are kept while a state may come back
+    }
+    SsGlobals g;
+    if (!ss_in_get(&in, &g, sizeof g)) rt_fatal("kernel: save state: globals damaged");
+    g_wait = g.wait, g_main = g.main_t, g_core_wait = g.core_wait;
+    memcpy(g_core_owner, g.core_owner, sizeof g_core_owner);
+    g_next_id = g.next_id, g_wseq = g.wseq, g_created = g.created, g_susp_paused = g.susp_paused;
+    const void *se = ss_in_take(&in, sizeof g_se);
+    if (se) {
+        plat_mutex_lock(&g_se_lock);
+        memcpy(g_se, se, sizeof g_se);
+        g_nse = g.nse;
+        plat_mutex_unlock(&g_se_lock);
+    }
+    for (uint32_t i = 0; i < n; i++) {
+        RtThread *t = (RtThread *)(uintptr_t)v[i].r.ptr;
+        ss_thread_put_back(t, v[i].t);
+        memcpy(t->cpu, v[i].cpu, sizeof *t->cpu);
+        t->ss_load_sp = (void *)(uintptr_t)v[i].r.sp;
+        t->ss_load_buf = v[i].stack;
+        t->ss_load_n = (size_t)v[i].r.n;
+    }
+    ss_command(SS_RESTORE);
+    for (RtThread *t = g_all; t; t = t->all) t->ss_load_buf = NULL;
+    unlock();
+    ss_defer_release();   // a deferred session the live table names again stays; the others may go
+}
+
+void kern_ss_drop(int slot) {
+    if (slot < 0 || slot >= SS_SLOTS) return;
+    lock();
+    free(g_ss_tab[slot]);
+    g_ss_tab[slot] = NULL;
+    unlock();
+    ss_defer_release();
+}

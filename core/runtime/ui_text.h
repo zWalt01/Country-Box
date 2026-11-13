@@ -24,6 +24,7 @@ typedef enum {
     UI_MENU_SET_BY_ENV,       // note on a setting an environment variable fixes
     UI_MENU_SAVE_FAILED,
     UI_MENU_VERSION,          // the port version and game update beside the title
+    UI_MENU_STATE_SAVE, UI_MENU_STATE_LOAD, UI_MENU_STATE_OLDER,   // Country-Box: save states (savestate.c), bottom row
 
     // Screen
     UI_MENU_FULLSCREEN, UI_MENU_FULLSCREEN_DESC,

@@ -24,6 +24,7 @@
 #include "input_map.h"
 #include "nvn_api.h"
 #include "platform/platform.h"
+#include "savestate.h"
 #include "ui/menu.h"
 #include "vk.h"
 
@@ -57,7 +58,9 @@ static const SDL_GamepadButton pad_sdl[PAD_COUNT] = {
 
 // MP4_INPUT_SCRIPT=<file>: lines "<frame> <button> [hold]" or "<frame> LSTICK|RSTICK <x> <y> [hold]", ORed into the real input.
 // Two lines act on the host instead: "<frame> SHOT" writes the shot ring (MP4_SHOT_RING, as the P key does) and
-// "<frame> DUMP" arms a frame dump two presents later (MP4_DUMP=when), for a scripted look at a scene.
+// "<frame> DUMP" arms a frame dump two presents later (MP4_DUMP=when), for a scripted look at a scene. Country-Box:
+// "<frame> SAVESTATE" and "<frame> LOADSTATE" do what F5 and F6 do (savestate.c), "<frame> LOADOLDER" what the menu's
+// "Load older state" does.
 // <frame> and its hold are 60 Hz ticks of game time since the first present (frame_step_ticks: presents at 60 fps), so
 // the title menus get the presses at the same game time at any frame limit. A line "@<ms> ..." is timed instead: <ms>
 // and its hold are milliseconds of the world clock (frame_step_world_us, display time since the first present), so
@@ -69,7 +72,7 @@ static const SDL_GamepadButton pad_sdl[PAD_COUNT] = {
 // present, so a load that takes another length in the replay does not shift what follows. A line after a SYNC the
 // replay has not reached waits for it.
 // at, hold: ticks, or microseconds of the world clock when timed. sync: the SYNC before the line (0: none).
-typedef struct { uint64_t at, hold; int bit, stick, timed, host; int32_t x, y; int logged; uint32_t sync; char text[48]; } ScriptEv;   // host: 1 SHOT, 2 DUMP
+typedef struct { uint64_t at, hold; int bit, stick, timed, host; int32_t x, y; int logged; uint32_t sync; char text[48]; } ScriptEv;   // host: 1 SHOT, 2 DUMP, 3 SAVESTATE, 4 LOADSTATE, 5 LOADOLDER
 #define SYNC_MAX 4096
 static int64_t sync_at[SYNC_MAX];   // player: world clock (us) at which the run's pool events reached n, -1 not yet
 static uint32_t sync_seen;          // player: pool events counted so far
@@ -117,8 +120,8 @@ static void script_load(void) {
             e.stick = name[0] == 'L' ? 1 : 2; e.x = (int32_t)a; e.y = (int32_t)b;
             if (n >= 3 && c > 0) e.hold = (uint64_t)(c * unit + 0.5);
             snprintf(e.text, sizeof e.text, "%s %d %d", name, e.x, e.y);
-        } else if (!strcmp(name, "SHOT") || !strcmp(name, "DUMP")) {
-            e.host = name[0] == 'S' ? 1 : 2;
+        } else if (!strcmp(name, "SHOT") || !strcmp(name, "DUMP") || !strcmp(name, "SAVESTATE") || !strcmp(name, "LOADSTATE") || !strcmp(name, "LOADOLDER")) {
+            e.host = !strcmp(name, "SHOT") ? 1 : !strcmp(name, "DUMP") ? 2 : name[0] == 'S' ? 3 : !strcmp(name, "LOADSTATE") ? 4 : 5;
             snprintf(e.text, sizeof e.text, "%s", name);
         } else {
             for (size_t i = 0; i < sizeof script_buttons / sizeof *script_buttons; i++)
@@ -170,6 +173,9 @@ static void script_apply(uint64_t *b, int32_t sl[2], int32_t sr[2]) {
         }
         if (e->host) {
             if (e->host == 1) rt_shot_ring_dump();
+            else if (e->host == 3) ss_request_save();   // Country-Box: F5 / F6 (savestate.c)
+            else if (e->host == 4) ss_request_load(0);
+            else if (e->host == 5) ss_request_load(1);
             else vk_dump_arm(fr + 2);
             e->at = UINT64_MAX - e->hold;   // once
         } else if (e->stick) { int32_t *s = e->stick == 1 ? sl : sr; s[0] = e->x; s[1] = e->y; }

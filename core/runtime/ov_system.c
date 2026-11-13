@@ -33,6 +33,7 @@
 #include "fs.h"
 #include "host.h"
 #include "ov.h"
+#include "savestate.h"
 
 #define NFP_R_DEVICE_NOT_FOUND 0x8073u     // nfp: no NFC reader on the host
 #define ACCOUNT_R_INVALID 0x7c67u          // MacNativeGames' result for an unknown user handle or uid
@@ -259,7 +260,8 @@ static void ov_try_pop(Cpu *c) {
 static void ov_pop(Cpu *c) {
     int away = kern_core_away();
     plat_mutex_lock(&lock);
-    while (head == tail) plat_cond_wait(&message_cv, &lock);
+    while (head == tail)   // Country-Box: timed, so a save state's freeze finds the thread (kern_ss_host_wait)
+        if (!kern_ss_host_wait(&lock)) plat_cond_wait_ns(&message_cv, &lock, KERN_SS_HOST_WAIT_NS);
     uint32_t m = messages[head++ % 32];
     plat_mutex_unlock(&lock);
     kern_core_back(&away);

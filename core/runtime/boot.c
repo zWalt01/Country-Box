@@ -23,6 +23,7 @@
 
 #include "cfg.h"
 #include "platform/platform.h"
+#include "savestate.h"
 #include "shader_prep.h"
 #include "fs.h"
 #include "gfx.h"
@@ -493,6 +494,7 @@ void rt_frame_presented(const tex_t *t, uint64_t n) {
     stats_line();
     fflush(stdout);
     fflush(stderr);
+    ss_shutdown();   // Country-Box: this session's save states (savestate.c) cannot load in another
     fs_save_flush();
     vk_pipeline_save();   // no-op without the Vulkan back end
     prof_write();
@@ -576,6 +578,7 @@ void rt_boot(void) {
     held = (plat_now_ns() / 1000000ull) - held;
     rt_log("boot: guest starts %llu ms after process start (%llu ms of it waiting for the prewarm)",
            (unsigned long long)ms_since_process_start(), (unsigned long long)held);
+    ss_init();   // Country-Box: save states (savestate.c): F5 / F6 and the menu
     rt_guest_start_ns = kern_now_ns();
     kern_run_on_guest_main(guest_main);
     rt_fatal("boot: the guest main thread ended");

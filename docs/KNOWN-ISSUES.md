@@ -22,4 +22,11 @@
   Steam Deck. Older CPUs, and ARM, are not supported.
 - **The first build is long**: about 9 minutes for Returns HD on an 8-core PC (see INSTALL). A Steam Deck has no
   compiler: build on a PC and import the build.
+- **Save states are experimental** (1.0.4): they have not been deeply tested yet, so they may not work everywhere.
+  F5 / F6 or Select+Start → menu. They freeze the whole game and write it to `profile/savestates/` (about 1.7–2 GB
+  each, the last 3 kept): under a second on a fast SSD (measured on PC, 2026-11-13), longer on a microSD card. They
+  only load while the game stays open, and a load is refused (nothing changes) when the game started or ended threads
+  or changed its memory pools since the save, which can happen after a level change. Sound may skip for a moment
+  after a load. Not tested yet on the Steam Deck. Feedback is needed to polish them: report what failed, with the
+  game and level, in [#3](https://github.com/zWalt01/Country-Box/issues/3) or a new issue.
 - **PC OPTIONS inside the game's own Options menu** exist but are off in 1.0 (`CB_NATIVE_OPTIONS=1` turns them on).

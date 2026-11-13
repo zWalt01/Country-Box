@@ -6,7 +6,52 @@ import struct
 import sys
 from collections import Counter
 
-import lz4.block
+try:  # Country-Box: lz4 is optional; Python 3.15 has no lz4 wheel yet and building it needs python3-devel.
+    import lz4.block as _lz4_block
+except ImportError:
+    _lz4_block = None
+
+
+def lz4_block_decompress(src, size):
+    """Decompress one raw LZ4 block (no frame header) into exactly `size` bytes."""
+    if _lz4_block is not None:
+        return _lz4_block.decompress(src, uncompressed_size=size)
+    src = memoryview(src)
+    out = bytearray()
+    i, n = 0, len(src)
+    while i < n:
+        token = src[i]; i += 1
+        lit = token >> 4
+        if lit == 15:
+            while True:
+                b = src[i]; i += 1
+                lit += b
+                if b != 255:
+                    break
+        out += src[i:i + lit]; i += lit
+        if i >= n:
+            break
+        off = src[i] | (src[i + 1] << 8); i += 2
+        if off == 0 or off > len(out):
+            raise ValueError('lz4: bad match offset')
+        ml = token & 15
+        if ml == 15:
+            while True:
+                b = src[i]; i += 1
+                ml += b
+                if b != 255:
+                    break
+        ml += 4
+        start = len(out) - off
+        if ml <= off:
+            out += out[start:start + ml]
+        else:
+            chunk = out[start:]
+            reps, rest = divmod(ml, off)
+            out += chunk * reps + chunk[:rest]
+    if len(out) != size:
+        raise ValueError('lz4: got %d bytes, expected %d' % (len(out), size))
+    return bytes(out)
 
 DT_NULL, DT_NEEDED, DT_PLTRELSZ, DT_HASH, DT_STRTAB, DT_SYMTAB, DT_RELA, DT_RELASZ = 0, 1, 2, 4, 5, 6, 7, 8
 DT_STRSZ, DT_JMPREL, DT_RELACOUNT = 10, 23, 0x6FFFFFF9
@@ -26,7 +71,7 @@ class Nso:
             comp_size = struct.unpack_from('<I', raw, 0x60 + i * 4)[0]
             data = raw[file_off:file_off + comp_size]
             if flags & (1 << i):
-                data = lz4.block.decompress(data, uncompressed_size=dec_size)
+                data = lz4_block_decompress(data, dec_size)
             segs.append((mem_off, data))
         self.bss_size = struct.unpack_from('<I', raw, 0x3C)[0]
         self.text = (segs[0][0], len(segs[0][1]))

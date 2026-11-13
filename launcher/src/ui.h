@@ -12,6 +12,7 @@
 #include "library.h"
 #include "manifest.h"
 #include "prepare.h"
+#include "relocate.h"
 #include "update.h"
 
 struct UiFonts {
@@ -21,7 +22,7 @@ struct UiFonts {
 class Ui {
 public:
     enum class Tab { Games, Settings, About };
-    enum class Flow { None, Browse, Checking, Result, Prepare, Import, UpdateAsk, Updating, UpdateResult };
+    enum class Flow { None, Browse, Checking, Result, Prepare, Import, UpdateAsk, Updating, UpdateResult, Moving };
 
     ~Ui();
     explicit Ui(Library &lib) : lib_(lib) {}
@@ -42,6 +43,14 @@ public:
     bool prep_finished() const { return (!prep_ || prep_->done()) && (!import_thread_.joinable() || import_done_.load()); }
     void select_settings_game(const std::string &game);
     const std::string &browse_dir() const { return dir_; }   // the scripted use-folder step
+    // A typed or pasted path in the browser: a game copy (or, importing, a build) is taken as is; any other folder
+    // is opened in the list. Quotes, file:// and a leading ~ are understood.
+    void browse_go(const std::string &text);
+    void open_system_picker();
+    // Moving the library (relocate.h): the browser picks the new folder, then the move runs with its progress.
+    void start_library_browse();
+    void start_library_move(const std::string &picked);
+    bool moving_finished() const { return !move_ || move_->finished.load(); }   // the desktop's folder dialog; its answer goes through browse_go
     // Prepare progress for --auto: true once the stage reached `stage` (and `done` units of it, if given).
     bool prep_reached(int stage, int done) const {
         if (!prep_) return prep_finished();
@@ -87,6 +96,7 @@ private:
     void draw_update_ask(ImVec2 mn, ImVec2 mx);
     void draw_updating(ImVec2 mn, ImVec2 mx);
     void draw_update_result(ImVec2 mn, ImVec2 mx);
+    void draw_moving(ImVec2 mn, ImVec2 mx);
     void draw_footer(ImVec2 mn, ImVec2 mx);
     void draw_toast(ImVec2 mn, ImVec2 mx);
     void draw_running(ImVec2 mn, ImVec2 mx);
@@ -114,6 +124,12 @@ private:
     std::vector<std::pair<std::string, std::string>> places_;
     std::string browse_note_;
     bool browse_import_ = false;   // the same browser, picking a build made elsewhere instead of a game copy
+    bool browse_library_ = false;  // the same browser, picking where the library goes
+    char path_buf_[4096] = {};     // the path field: the folder shown, or what the player typed or pasted
+    bool list_top_ = false;        // a new folder: the list starts at its top
+    bool list_drag_ = false, list_dragged_ = false;   // a press that began on the list; it moved far enough to scroll
+    bool picker_open_ = false;     // the system's folder dialog is up (its answer arrives on another thread)
+    void take_picker_answer();
     // check
     std::unique_ptr<VerifyJob> job_;
     VerifyResult result_;
@@ -127,6 +143,9 @@ private:
     std::atomic<bool> import_done_{false};
     std::atomic<int64_t> import_bytes_{0}, import_total_{0};
     std::thread import_thread_;
+    // library move
+    std::unique_ptr<LibraryMove> move_;
+    std::thread move_thread_;
     // settings
     std::string settings_game_;
     Json dump_;

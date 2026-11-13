@@ -1,4 +1,7 @@
 #!/bin/sh
 HERE="$(dirname "$(readlink -f "$0")")"
+# the launcher loads its own SDL from usr/lib; the launcher puts the player's LD_LIBRARY_PATH back for everything it
+# starts (Python, clang, the game, which was built against the system's SDL)
+export CB_APPRUN=1 CB_APPRUN_LD_LIBRARY_PATH="${LD_LIBRARY_PATH-}"
 export LD_LIBRARY_PATH="$HERE/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 exec "$HERE/usr/bin/country-box-launcher" "$@"

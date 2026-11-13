@@ -36,6 +36,7 @@
 #include "host.h"
 #include "layout.h"
 #include "platform/platform.h"
+#include "savestate.h"
 
 #define PAGE 0x1000ull
 #define GiB (1ull << 30)
@@ -856,4 +857,194 @@ void mem_kernel_free(void *p, uint64_t size) {
     f->next = kfree_list[k];
     kfree_list[k] = f;
     plat_mutex_unlock(&klock);
+}
+
+// ---- Country-Box: save states (savestate.h). The guest is every mapping from the stack and heap block up to
+// RT_ADDRESS_LIMIT (modules, kernel region, alias region, pool shadows); /proc/self/maps lists them as they are now.
+typedef struct { uint64_t lo, hi; char perm[5]; uint8_t memfd; } SsMap;
+
+static size_t ss_maps(SsMap **out) {
+    size_t n = 0, cap = 256;
+    SsMap *m = malloc(cap * sizeof *m);
+    FILE *f = fopen("/proc/self/maps", "r");
+    if (!m || !f) rt_fatal("memory: save state: /proc/self/maps");
+    char line[512];
+    uint64_t base = L.aslr.base;
+    while (fgets(line, sizeof line, f)) {
+        unsigned long long lo, hi;
+        char perm[8] = {0};
+        if (sscanf(line, "%llx-%llx %7s", &lo, &hi, perm) != 3 || lo < base || hi > RT_ADDRESS_LIMIT) continue;
+        if (n == cap && !(m = realloc(m, (cap *= 2) * sizeof *m))) rt_fatal("memory: save state: maps");
+        m[n] = (SsMap){lo, hi, {0}, strstr(line, "memfd:country-box-guest") != NULL};
+        memcpy(m[n].perm, perm, 4);
+        n++;
+    }
+    fclose(f);
+    *out = m;
+    return n;
+}
+
+static void run_add(SsRun **r, size_t *n, size_t *cap, uint64_t a, uint64_t len) {
+    if (*n && (*r)[*n - 1].addr + (*r)[*n - 1].len == a) {
+        (*r)[*n - 1].len += len;
+        return;
+    }
+    if (*n == *cap && !(*r = realloc(*r, (*cap = *cap ? *cap * 2 : 1024) * sizeof **r)))
+        rt_fatal("memory: save state: run list");
+    (*r)[(*n)++] = (SsRun){a, len};
+}
+
+size_t mem_ss_runs(SsRun **out) {
+    SsMap *m;
+    size_t nm = ss_maps(&m), n = 0, cap = 0;
+    SsRun *r = NULL;
+    int pm = open("/proc/self/pagemap", O_RDONLY | O_CLOEXEC);
+    for (size_t i = 0; i < nm; i++) {
+        if (m[i].perm[1] != 'w') continue;
+        const Watched *w = m[i].memfd ? watched_of(m[i].lo, m[i].hi - m[i].lo) : NULL;
+        if (w && w->fd >= 0) {   // memfd: the data extents (decommitted pages are holes)
+            off_t at = (off_t)(m[i].lo - w->lo), end = (off_t)(m[i].hi - w->lo);
+            while (at < end) {
+                off_t d = lseek(w->fd, at, SEEK_DATA);
+                if (d < 0 || d >= end) break;
+                off_t h = lseek(w->fd, d, SEEK_HOLE);
+                if (h < 0 || h > end) h = end;
+                run_add(&r, &n, &cap, w->lo + (uint64_t)d, (uint64_t)(h - d));
+                at = h;
+            }
+            continue;
+        }
+        // Anonymous memory: the pages that are present or swapped out (an untouched page reads as zeros).
+        static uint64_t ent[4096];
+        for (uint64_t a = m[i].lo; a < m[i].hi;) {
+            uint64_t k = (m[i].hi - a) / PAGE;
+            if (k > 4096) k = 4096;
+            ssize_t got = pm >= 0 ? pread(pm, ent, k * 8, (off_t)(a / PAGE * 8)) : -1;
+            if (got != (ssize_t)(k * 8)) {   // no pagemap: the whole mapping
+                run_add(&r, &n, &cap, a, m[i].hi - a);
+                break;
+            }
+            for (uint64_t j = 0; j < k; j++)
+                if (ent[j] >> 62) run_add(&r, &n, &cap, a + j * PAGE, PAGE);
+            a += k * PAGE;
+        }
+    }
+    if (pm >= 0) close(pm);
+    free(m);
+    *out = r;
+    return n;
+}
+
+// The layout a state keeps: the bookkeeping that must not have changed (heap size, stack maps, pool shadows; a
+// released shadow stays reserved and is reused, memory.c mem_shadow_release), then the alias region's mapped pages,
+// which a load puts back (Unity's heap maps and unmaps physical memory as it grows and shrinks).
+typedef struct { uint64_t first, count; } AliasRun;
+
+void mem_ss_layout(SsBuf *out) {
+    plat_mutex_lock(&lock);
+    ss_buf_put(out, &heap_size, sizeof heap_size);
+    ss_buf_put(out, &nstack_maps, sizeof nstack_maps);
+    ss_buf_put(out, stack_maps, sizeof stack_maps);
+    ss_buf_put(out, &nshadow, sizeof nshadow);
+    ss_buf_put(out, shadow_lo, sizeof shadow_lo);
+    ss_buf_put(out, shadow_hi, sizeof shadow_hi);
+    ss_buf_put(out, shadow_free, sizeof shadow_free);
+    ss_buf_put(out, &alias_bytes, sizeof alias_bytes);
+    SsBuf runs = {0};
+    uint64_t n = 0;
+    for (uint64_t i = 0; i < ALIAS_PAGES;) {
+        if (!alias_pages[i]) {
+            i++;
+            continue;
+        }
+        uint64_t j = i;
+        while (j < ALIAS_PAGES && alias_pages[j]) j++;
+        AliasRun r = {i, j - i};
+        ss_buf_put(&runs, &r, sizeof r);
+        n++;
+        i = j;
+    }
+    plat_mutex_unlock(&lock);
+    ss_buf_put(out, &n, sizeof n);
+    ss_buf_put(out, runs.p, runs.n);
+    ss_buf_free(&runs);
+}
+
+#define SS_STRICT_BYTES (sizeof heap_size + sizeof nstack_maps + sizeof stack_maps + sizeof nshadow + sizeof shadow_lo + \
+                         sizeof shadow_hi + sizeof shadow_free)
+
+// 1 when the saved runs can go back after mem_ss_layout_apply: the strict part is the same, and every run outside the
+// alias region lies in memory that is read-write now (inside it, apply commits what the state had mapped).
+int mem_ss_layout_check(SsIn in, const SsRun *runs, size_t nruns, char *why, size_t wn) {
+    SsBuf now = {0};
+    mem_ss_layout(&now);
+    const uint8_t *was = ss_in_take(&in, SS_STRICT_BYTES);
+    int ok = was && now.n >= SS_STRICT_BYTES;
+    if (ok && memcmp(now.p, was, SS_STRICT_BYTES)) {
+        static const struct { const char *name; size_t size; } part[] = {
+            {"heap size", sizeof heap_size}, {"stack maps", sizeof nstack_maps}, {"stack map table", sizeof stack_maps},
+            {"pool shadows", sizeof nshadow}, {"shadow starts", sizeof shadow_lo}, {"shadow ends", sizeof shadow_hi},
+            {"shadow free flags", sizeof shadow_free}};
+        size_t at = 0;
+        for (size_t i = 0; i < sizeof part / sizeof *part; i++, at += part[i - 1].size)
+            if (memcmp(now.p + at, was + at, part[i].size)) {
+                uint64_t a = 0, b = 0;
+                if (part[i].size <= 8) memcpy(&a, was + at, part[i].size), memcpy(&b, now.p + at, part[i].size);
+                snprintf(why, wn, "the game's memory changed since this state was saved (%s %#llx -> %#llx)", part[i].name,
+                         (unsigned long long)a, (unsigned long long)b);
+                break;
+            }
+        ok = 0;
+    } else if (!ok) {
+        snprintf(why, wn, "the state's memory layout is damaged");
+    }
+    ss_buf_free(&now);
+    if (!ok) return 0;
+    SsMap *m;
+    size_t nm = ss_maps(&m), k = 0;
+    for (size_t i = 0; i < nruns && ok; i++) {
+        uint64_t a = runs[i].addr, end = a + runs[i].len;
+        if (a >= L.alias.base && end <= L.alias.base + L.alias.size) continue;
+        while (a < end) {   // maps and runs are both sorted by address
+            while (k < nm && m[k].hi <= a) k++;
+            if (k == nm || m[k].lo > a || m[k].perm[1] != 'w') {
+                snprintf(why, wn, "guest memory at %#llx is not writable any more", (unsigned long long)a);
+                ok = 0;
+                break;
+            }
+            a = m[k].hi < end ? m[k].hi : end;
+        }
+    }
+    free(m);
+    return ok;
+}
+
+// The alias region's mapped pages back as the state had them (after mem_ss_layout_check).
+void mem_ss_layout_apply(SsIn in) {
+    if (!ss_in_take(&in, SS_STRICT_BYTES)) return;
+    uint64_t bytes, n;
+    if (!ss_in_get(&in, &bytes, sizeof bytes) || !ss_in_get(&in, &n, sizeof n)) return;
+    const AliasRun *r = ss_in_take(&in, n * sizeof *r);
+    if (!r) return;
+    uint8_t *want = mmap(NULL, ALIAS_PAGES, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+    if (want == MAP_FAILED) rt_fatal("memory: save state: alias page map");
+    for (uint64_t i = 0; i < n; i++)
+        if (r[i].first < ALIAS_PAGES && r[i].count <= ALIAS_PAGES - r[i].first) memset(want + r[i].first, 1, r[i].count);
+    plat_mutex_lock(&lock);
+    for (uint64_t i = 0; i < ALIAS_PAGES;) {
+        if (alias_pages[i] == want[i]) {
+            i++;
+            continue;
+        }
+        uint64_t j = i;
+        while (j < ALIAS_PAGES && alias_pages[j] != want[j] && want[j] == want[i]) j++;
+        uint64_t a = L.alias.base + i * PAGE, len = (j - i) * PAGE;
+        if (want[i]) commit(a, len, "physical memory (save state)");
+        else decommit(a, len, "physical memory (save state)");
+        memcpy(alias_pages + i, want + i, j - i);
+        i = j;
+    }
+    alias_bytes = bytes;
+    plat_mutex_unlock(&lock);
+    munmap(want, ALIAS_PAGES);
 }
