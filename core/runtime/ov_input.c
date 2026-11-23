@@ -5,7 +5,9 @@
 // nn::hid overrides: one connected controller fed by input_poll (gamepad and keyboard,
 // runtime/input_sdl.c; nothing pressed with MP4_INPUT=none). Docked (default) it is a full-key controller as player 1 (id 0, style bit 0); with
 // MP4_OPERATION_MODE=handheld it is the handheld controller (id 0x20, style bit 1) and player 1 is not connected,
-// which is the controller the game reads in that mode. Mouse and keyboard report no input. The controller has two
+// which is the controller the game reads in that mode. Country-Box co-op: docked, a second gamepad is player 2 (id 1,
+// full-key, buttons and sticks only: no vibration or six-axis sensor).
+// Mouse and keyboard report no input. The controller has two
 // vibration devices (left, right) played on the gamepad's motors (MP4_RUMBLE=0: none) and a six-axis sensor fed by
 // the gamepad's gyro and accelerometer (MP4_MOTION=0, live: reads at rest). State layouts follow libnx HID.
 #include <pthread.h>
@@ -28,14 +30,20 @@ _Static_assert(sizeof(NpadState) == 40 && sizeof(MouseState) == 40 && sizeof(Key
 _Static_assert(sizeof(ControllerSupportResult) == 8, "controller support result ABI");
 
 enum { STYLE_FULL_KEY = 1, STYLE_HANDHELD = 2, ATTR_CONNECTED = 1 };
+enum { P2_ID = 1 };   // Country-Box co-op: player 2's controller id
 
 static pthread_rwlock_t lock = PTHREAD_RWLOCK_INITIALIZER;   // shared by the getters
 static uint32_t styles = STYLE_FULL_KEY;
 static int enabled, allowed = 1, mouse_ready, keyboard_ready;
+static int allowed2 = 1;   // Country-Box co-op: the game accepts player 2's id (SetSupportedNpadIdType)
 static int64_t sample;
 
 static uint32_t pad_id(void) { return ov_handheld() ? 0x20u : 0u; }
 static uint32_t pad_style(void) { return ov_handheld() ? STYLE_HANDHELD : STYLE_FULL_KEY; }
+
+// Country-Box co-op: player 2 is connected (docked and a second gamepad present; allowed2 is checked by the callers).
+// Not under lock: input_pad2_connected takes input_sdl.c's own.
+static int p2_connected(void) { return !ov_handheld() && input_pad2_connected(); }
 
 static const uint32_t *need_id(Cpu *c, int i, const char *fn) {
     const uint32_t *id = arg_p(c, i);
@@ -51,7 +59,8 @@ static void ov_initialize_npad(Cpu *c) {
     enabled = 1;
     pthread_rwlock_unlock(&lock);
     if (first)   // FE3H calls InitializeNpad every frame
-        rt_log("hid: controllers initialized (one connected %s controller)", ov_handheld() ? "handheld" : "full-key");
+        rt_log("hid: controllers initialized (one connected %s controller%s)", ov_handheld() ? "handheld" : "full-key",
+               p2_connected() ? ", plus player 2" : "");
 }
 
 // void SetSupportedNpadIdType(const NpadIdType *ids, size_t count)
@@ -59,10 +68,14 @@ static void ov_supported_ids(Cpu *c) {
     const uint32_t *ids = arg_p(c, 0);
     uint64_t n = arg_x(c, 1);
     if (n > 10 || (!ids && n)) rt_fatal("nn::hid::SetSupportedNpadIdType: invalid id list (%llu ids)", (unsigned long long)n);
-    int ok = 0;
-    for (uint64_t i = 0; i < n; i++) ok |= ids[i] == pad_id();
+    int ok = 0, ok2 = 0;
+    for (uint64_t i = 0; i < n; i++) {
+        ok |= ids[i] == pad_id();
+        ok2 |= ids[i] == P2_ID;
+    }
     pthread_rwlock_wrlock(&lock);
     allowed = ok;
+    allowed2 = ok2;
     pthread_rwlock_unlock(&lock);
 }
 
@@ -78,7 +91,10 @@ static void ov_style_set(Cpu *c) {
     uint32_t id = *need_id(c, 0, "GetNpadStyleSet");
     pthread_rwlock_rdlock(&lock);
     uint32_t v = enabled && allowed && id == pad_id() ? styles & pad_style() : 0;
+    int p2 = enabled && allowed2 && id == P2_ID;
+    uint32_t st = styles;
     pthread_rwlock_unlock(&lock);
+    if (p2 && p2_connected()) v = st & STYLE_FULL_KEY;
     ret_x(c, v);
 }
 
@@ -93,10 +109,14 @@ static void npad_states(Cpu *c, uint32_t want) {
     pthread_rwlock_wrlock(&lock);
     NpadState s = {.sampling = ++sample};
     int live = want && enabled && allowed && id == pad_id() && want == pad_style() && (styles & want);
+    int p2 = want == STYLE_FULL_KEY && enabled && allowed2 && id == P2_ID && (styles & want);
     pthread_rwlock_unlock(&lock);
     if (live) {
         s.attributes = ATTR_CONNECTED;
         input_poll(&s.buttons, &s.lx, &s.ly, &s.rx, &s.ry);
+    } else if (p2 && p2_connected()) {
+        s.attributes = ATTR_CONNECTED;
+        input_poll_p2(&s.buttons, &s.lx, &s.ly, &s.rx, &s.ry);
     }
     *out = s;
     ret_x(c, 1);
@@ -132,11 +152,12 @@ static void ov_disconnect(Cpu *c) {
     pthread_rwlock_unlock(&lock);
 }
 
-// Result ShowControllerSupport(ControllerSupportResultInfo *out, const ControllerSupportArg &arg): the one controller
-// is already connected, so the applet returns at once with one player on it.
+// Result ShowControllerSupport(ControllerSupportResultInfo *out, const ControllerSupportArg &arg): the controllers are
+// already connected, so the applet returns at once with one player on it (Country-Box co-op: two with player 2's
+// gamepad).
 static void ov_controller_support(Cpu *c) {
     ControllerSupportResult *out = arg_p(c, 0);
-    if (out) *out = (ControllerSupportResult){.players = 1, .selected = pad_id()};
+    if (out) *out = (ControllerSupportResult){.players = (int8_t)(1 + p2_connected()), .selected = pad_id()};
     ret_x(c, 0);
 }
 

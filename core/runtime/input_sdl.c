@@ -33,7 +33,9 @@ enum { STICK_MAX = 32767, STICK_DIR = 16384, TRIGGER_ON = 16384, RESCAN_MS = 100
 static PlatMutex lock = PLAT_MUTEX_INIT;
 static int state;                    // 0 not started, 1 running, -1 disabled or SDL failed
 static SDL_Gamepad *pad;
+static SDL_Gamepad *pad2;            // Country-Box co-op: the second gamepad (player 2), NULL without one
 static uint64_t next_scan;
+static uint64_t next_scan2;          // ... and when to look for player 2's gamepad again
 static int pad_rumble;               // the open gamepad has rumble motors
 static int32_t pad_labels[4];        // ... and the labels of its south, east, west, north buttons (PAD_LABEL_*), any thread
 static int pad_east_a;               // ... and labels its east face button A (Nintendo layout under MP4_PAD_LAYOUT=auto)
@@ -576,9 +578,12 @@ static float stick_dead_get(void) {
     return stick_dead;
 }
 
-// One gamepad stick through the dead zone; SDL's Y grows downwards, the Switch's upwards.
+// One stick of gamepad g through the dead zone; SDL's Y grows downwards, the Switch's upwards.
+static void stick_of(SDL_Gamepad *g, SDL_GamepadAxis ax, SDL_GamepadAxis ay, float dead, int32_t out[2]) {
+    input_pad_stick(SDL_GetGamepadAxis(g, ax), -(int32_t)SDL_GetGamepadAxis(g, ay), dead, out);
+}
 static void stick(SDL_GamepadAxis ax, SDL_GamepadAxis ay, float dead, int32_t out[2]) {
-    input_pad_stick(SDL_GetGamepadAxis(pad, ax), -(int32_t)SDL_GetGamepadAxis(pad, ay), dead, out);
+    stick_of(pad, ax, ay, dead, out);
 }
 
 // Open the first gamepad when none is open or the open one went away; logs once per change.
@@ -592,7 +597,9 @@ static void scan_pads(void) {
     }
     int n = 0;
     SDL_JoystickID *ids = SDL_GetGamepads(&n);
-    for (int i = 0; ids && i < n && !pad; i++) pad = SDL_OpenGamepad(ids[i]);
+    SDL_JoystickID p2 = pad2 ? SDL_GetGamepadID(pad2) : 0;
+    for (int i = 0; ids && i < n && !pad; i++)
+        if (ids[i] != p2) pad = SDL_OpenGamepad(ids[i]);
     SDL_free(ids);
     if (!pad) return;
     pad_rumble = SDL_GetBooleanProperty(SDL_GetGamepadProperties(pad), SDL_PROP_GAMEPAD_CAP_RUMBLE_BOOLEAN, false);
@@ -711,16 +718,21 @@ static void pick(int32_t *x, int32_t *y, int32_t kx, int32_t ky) {
     if (b > a) { *x = kx; *y = ky; }
 }
 
+// Under lock: gamepad g's inputs by position (pd[PAD_*] != 0 held). Country-Box co-op: shared by players 1 and 2.
+static void gamepad_buttons(SDL_Gamepad *g, uint8_t pd[PAD_COUNT]) {
+    for (int p = PAD_SOUTH; p < PAD_ZL; p++) pd[p] = SDL_GetGamepadButton(g, pad_sdl[p]);
+    pd[PAD_ZL] = SDL_GetGamepadAxis(g, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > TRIGGER_ON;
+    pd[PAD_ZR] = SDL_GetGamepadAxis(g, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) > TRIGGER_ON;
+    for (int p = PAD_ZR + 1; p < PAD_COUNT; p++) pd[p] = SDL_GetGamepadButton(g, pad_sdl[p]);   // false without paddles
+}
+
 // Under lock, state 1: the open gamepad's inputs by position (pd[PAD_*] != 0 held); 0 without a connected gamepad.
 static int pad_physical(uint8_t pd[PAD_COUNT]) {
     uint64_t ms = plat_now_ns() / 1000000u;
     if ((!pad || !SDL_GamepadConnected(pad)) && ms >= next_scan) { next_scan = ms + RESCAN_MS; scan_pads(); }
     SDL_UpdateGamepads();
     if (!pad || !SDL_GamepadConnected(pad)) return 0;
-    for (int p = PAD_SOUTH; p < PAD_ZL; p++) pd[p] = SDL_GetGamepadButton(pad, pad_sdl[p]);
-    pd[PAD_ZL] = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > TRIGGER_ON;
-    pd[PAD_ZR] = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) > TRIGGER_ON;
-    for (int p = PAD_ZR + 1; p < PAD_COUNT; p++) pd[p] = SDL_GetGamepadButton(pad, pad_sdl[p]);   // false without paddles
+    gamepad_buttons(pad, pd);
     return 1;
 }
 
@@ -813,6 +825,62 @@ void input_poll(uint64_t *buttons, int32_t *lx, int32_t *ly, int32_t *rx, int32_
         *buttons = 0; *lx = *ly = *rx = *ry = 0;
     }
     res_scan_input((*buttons >> B_ZL) & 1u);
+}
+
+// ---- Country-Box co-op: a second gamepad as player 2 (ov_input.c reports it as controller id 1, full-key). Buttons
+// and sticks only, with player 1's layout, bindings and dead zone; no keyboard, rumble or motion.
+
+// Under lock: open the first gamepad player 1 does not have when player 2 has none or its own went away.
+static void scan_pad2(void) {
+    if (pad2 && SDL_GamepadConnected(pad2)) return;
+    if (pad2) { SDL_CloseGamepad(pad2); pad2 = NULL; rt_log("input: player 2 gamepad disconnected"); }
+    if (!pad) return;   // player 1 takes the first gamepad
+    int n = 0;
+    SDL_JoystickID *ids = SDL_GetGamepads(&n), p1 = SDL_GetGamepadID(pad);
+    for (int i = 0; ids && i < n && !pad2; i++)
+        if (ids[i] != p1) pad2 = SDL_OpenGamepad(ids[i]);
+    SDL_free(ids);
+    if (pad2) rt_log("input: player 2 gamepad \"%s\"", SDL_GetGamepadName(pad2));
+}
+
+// Under lock: start the input side if needed and look for player 2's gamepad at most every RESCAN_MS.
+static void p2_refresh(void) {
+    if (!state) start();
+    if (state != 1) return;
+    uint64_t ms = plat_now_ns() / 1000000u;
+    if ((!pad2 || !SDL_GamepadConnected(pad2)) && ms >= next_scan2) { next_scan2 = ms + RESCAN_MS; scan_pad2(); }
+}
+
+int input_pad2_connected(void) {
+    plat_mutex_lock(&lock);
+    p2_refresh();
+    int ok = state == 1 && pad2 && SDL_GamepadConnected(pad2);
+    plat_mutex_unlock(&lock);
+    return ok;
+}
+
+void input_poll_p2(uint64_t *buttons, int32_t *lx, int32_t *ly, int32_t *rx, int32_t *ry) {
+    uint64_t b = 0;
+    int32_t sl[2] = {0, 0}, sr[2] = {0, 0};
+    plat_mutex_lock(&lock);
+    p2_refresh();
+    if (state == 1 && pad2 && SDL_GamepadConnected(pad2)) {
+        SDL_UpdateGamepads();
+        uint8_t pd[PAD_COUNT] = {0};
+        gamepad_buttons(pad2, pd);
+        b = input_map_pad_buttons(pd, pad_layout_get());
+        float dead = stick_dead_get();
+        stick_of(pad2, SDL_GAMEPAD_AXIS_LEFTX, SDL_GAMEPAD_AXIS_LEFTY, dead, sl);
+        stick_of(pad2, SDL_GAMEPAD_AXIS_RIGHTX, SDL_GAMEPAD_AXIS_RIGHTY, dead, sr);
+    }
+    plat_mutex_unlock(&lock);
+    // the in-game menu or a text entry blocks player 2 as well (the flags are only read here; player 1 clears them)
+    if (__atomic_load_n(&g_block, __ATOMIC_SEQ_CST) || __atomic_load_n(&g_menu, __ATOMIC_SEQ_CST)) {
+        b = 0; sl[0] = sl[1] = sr[0] = sr[1] = 0;
+    }
+    stick_bits(&b, sl[0], sl[1], B_SL_LEFT);
+    stick_bits(&b, sr[0], sr[1], B_SR_LEFT);
+    *buttons = b; *lx = sl[0]; *ly = sl[1]; *rx = sr[0]; *ry = sr[1];
 }
 
 void input_poll_ui(uint64_t *buttons, int32_t *lx, int32_t *ly, int32_t *rx, int32_t *ry) {
