@@ -8,10 +8,10 @@
 //   mp4_xlate --serve              one request per stdin line: {"job": {...}, "out": "<dir>"}; one reply line per request:
 //                                   "ok <key>" or "fail <key> <message>"; a malformed line gets "fail ? <message>" and the loop continues.
 //   mp4_xlate <jobs.json> <outdir> batch mode: a JSON array of jobs, prints a summary, exit 1 if any failed.
-//   job: { "key", "stage": "vs|ps|cs", "code": path (graphics = 0x50-byte SPH + instructions, compute = instructions), "c1": hex,
+//   job: { "key", "stage": "vs|ps|gs|cs", "code": path (graphics = 0x50-byte SPH + instructions, compute = instructions), "c1": hex,
 //          "tex": {slot: type}, "img": {slot: {type, fmt}}, "attr": {loc: float|sint|uint}, "fout": {idx: float|sint|uint},
 //          "local": [x, y, z], "shared": bytes, "debug": bool, "reduced": bool, "softfloat64": bool,
-//          "sbuf_align": int, "subgroup": int }
+//          "sbuf_align": int, "subgroup": int, "topology": "points|lines|lines_adjacency|triangles|triangles_adjacency" (gs only) }
 //   Output: <out>/<key>.spv and <out>/<key>.res.json (bindings, queried slots, notes).
 using Ryujinx.Common.Memory;
 using Ryujinx.Graphics.Shader;
@@ -108,6 +108,11 @@ static class SwshXlate
         public int QueryComputeLocalSizeZ() => Local(2);
         public int QueryComputeSharedMemorySize() => _job["shared"] is JsonNode n ? (int)n : 0;   // 配对 PC 的 groupshared 声明之和 | sum of the paired PC shader's groupshared declarations
         static AttributeType Attr(string s) => s switch { "sint" => AttributeType.Sint, "uint" => AttributeType.Uint, _ => AttributeType.Float };
+        // "topology": the primitive type a geometry program is drawn with ("points", "lines", "lines_adjacency", "triangles",
+        // "triangles_adjacency"); decides the geometry shader's input (OpExecutionMode, size of its input arrays). Absent = triangles.
+        InputTopology InTopology() => _job["topology"] is JsonNode t ? (string)t switch {
+            "points" => InputTopology.Points, "lines" => InputTopology.Lines, "lines_adjacency" => InputTopology.LinesAdjacency,
+            "triangles_adjacency" => InputTopology.TrianglesAdjacency, _ => InputTopology.Triangles } : InputTopology.Triangles;
         public GpuGraphicsState QueryGraphicsState()
         {
             Array32<AttributeType> attr = default; Array8<AttributeType> fout = default;
@@ -118,7 +123,7 @@ static class SwshXlate
             // "early_fragment_tests": the fragment shader's NVN control byte +0x718 (the driver's early-Z-force, Ryujinx's
             // EarlyZForce); the SPIR-V then declares EarlyFragmentTests (MacNativeGames ae8f4f4).
             bool earlyZ = _job["early_fragment_tests"] is JsonValue ez && ez.TryGetValue<bool>(out bool eb) && eb;
-            return new GpuGraphicsState(earlyZ, InputTopology.Triangles, false, TessPatchType.Triangles, TessSpacing.EqualSpacing,
+            return new GpuGraphicsState(earlyZ, InTopology(), false, TessPatchType.Triangles, TessSpacing.EqualSpacing,
                 false, false, false, depthMinusW, false, 1f, AlphaTestOp.Always, 0f, attr, false, fout, false,
                 false /* 不做 Y 取反 | no Y flip */, true /* 原点左上 | origin upper-left */, false);
         }

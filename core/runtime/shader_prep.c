@@ -156,6 +156,7 @@ static void marker_text(char *out, size_t cap) {
     snprintf(out, cap,
              "country-box shader preparation 1\n"
              "translator %s\n"
+             "geometry-programs 1\n"
              "gpu %04x:%04x %s\n"
              "driver %u %s %s\n"
              "pipeline-cache-uuid %s\n"
@@ -189,6 +190,7 @@ int shader_prep_needed(char *why, size_t cap) {
             while (*a && *a == *b) a++, b++;
             while (b > want && b[-1] != '\n') b--;
             w = !strncmp(b, "translator", 10)                                       ? "the shader translator changed"
+                : !strncmp(b, "geometry", 8)                                         ? "geometry shaders are now prepared"
                 : !strncmp(b, "gpu", 3)                                             ? "the GPU changed"
                 : !strncmp(b, "driver ", 7) || !strncmp(b, "pipeline-cache-uuid", 19) ? "the graphics driver changed"
                 : !strncmp(b, "driver-cache", 12)                                   ? "the driver cache moved"
@@ -238,6 +240,12 @@ typedef struct {
     uint32_t n_rec_co;
     uint8_t *cand;                                         // records: co[32], control[CONTROL_SIZE]
     size_t cand_n, cand_cap;
+    // Geometry programs: a geometry stage has no recorded answers but its input, so every one the files hold is a variant
+    // (translated for a point list, which all of Tropical Freeze's are; other inputs are recorded when drawn).
+    uint8_t *geo;                                          // seed-answers records of the geometry programs found
+    size_t geo_n, geo_cap;
+    uint8_t (*geo_tab)[32];                                // their code hashes, open addressing (all zero: free)
+    uint32_t geo_slots, geo_found;
 } Wanted;
 
 static Want *want_slot(Wanted *W, const uint8_t h[32]) {
@@ -349,10 +357,64 @@ static void apply_runs(uint8_t *ctl, const uint8_t *r, uint16_t n) {
     }
 }
 
+// A geometry program found in the files: its program record (once per code hash) and its variant record.
+static void geo_add(Wanted *W, const uint8_t h[32], const uint8_t *control, const uint8_t *code, uint32_t length) {
+    uint32_t c1_off;
+    memcpy(&c1_off, control + 0x700, 4);
+    if (c1_off > length) return;
+    plat_mutex_lock(&W->lock);
+    if (W->geo_found * 2 >= W->geo_slots) {   // grow the table
+        uint32_t ns = W->geo_slots ? W->geo_slots * 2 : 4096;
+        uint8_t(*nt)[32] = calloc(ns, 32);
+        for (uint32_t i = 0; nt && i < W->geo_slots; i++) {
+            static const uint8_t zero[32];
+            if (!memcmp(W->geo_tab[i], zero, 32)) continue;
+            uint32_t k;
+            memcpy(&k, W->geo_tab[i], 4);
+            while (memcmp(nt[k & (ns - 1)], zero, 32)) k++;
+            memcpy(nt[k & (ns - 1)], W->geo_tab[i], 32);
+        }
+        if (!nt) goto out;
+        free(W->geo_tab), W->geo_tab = nt, W->geo_slots = ns;
+    }
+    static const uint8_t zero[32];
+    uint32_t k;
+    memcpy(&k, h, 4);
+    for (;; k++) {
+        uint8_t *e = W->geo_tab[k & (W->geo_slots - 1)];
+        if (!memcmp(e, h, 32)) goto out;   // seen
+        if (!memcmp(e, zero, 32)) {
+            uint32_t head[3] = {(uint32_t)GFX_STAGE_GS, length, length - c1_off};
+            uint8_t rec[GFX_SEED_REC];
+            GfxShaderAnswers a;
+            memset(&a, 0, sizeof a);   // a geometry stage's answers: the input, a point list (GFX_GS_IN_POINTS = 0)
+            gfx_shader_seed_record(GFX_STAGE_GS, h, &a, 1, rec);
+            if (bytes_put(&W->progs, &W->progs_n, &W->progs_cap, head, 12) &&
+                bytes_put(&W->progs, &W->progs_n, &W->progs_cap, h, 32) &&
+                bytes_put(&W->progs, &W->progs_n, &W->progs_cap, control, CONTROL_SIZE) &&
+                bytes_put(&W->progs, &W->progs_n, &W->progs_cap, code, length) &&
+                bytes_put(&W->progs, &W->progs_n, &W->progs_cap, code + c1_off, length - c1_off) &&
+                bytes_put(&W->geo, &W->geo_n, &W->geo_cap, rec, sizeof rec)) {
+                memcpy(e, h, 32);
+                W->geo_found++;
+            }
+            goto out;
+        }
+    }
+out:
+    plat_mutex_unlock(&W->lock);
+}
+
 static void sink(void *ctx, int stage, const uint8_t *control, const uint8_t *code, uint32_t length) {
     Wanted *W = ctx;
     uint8_t h[32];
     code_hash(stage, control, code, length, h);
+    if (stage == GFX_STAGE_GS) {   // every geometry program is a variant (geo_add); a listed one is found by it as well
+        geo_add(W, h, control, code, length);
+        Want *s = want_find(W, h);
+        if (s) __atomic_store_n(&s->found, 1, __ATOMIC_RELEASE), plat_atomic_inc(&W->from_files);
+        return;
+    }
     if (store(W, h, stage, control, code, length)) plat_atomic_inc(&W->from_files);
     if (!W->n_patch && !W->n_rec_co) return;
     uint8_t co[32];
@@ -705,6 +767,13 @@ int shader_prep_run(const ShaderPrepGame *g, ShaderPrepProgressFn progress, void
             Want *s = want_find(&W, ans.p + o + 4);
             if (s && s->found) bytes_put(&seed.p, &seed.n, &seed.cap, ans.p + o, ANS_REC), kept++;
         }
+        for (size_t g = 0; g + ANS_REC <= W.geo_n; g += ANS_REC) {   // the geometry programs' point-list variants, unless a list has one
+            int listed = 0;
+            for (size_t o = 0; !listed && o + ANS_REC <= ans.n; o += ANS_REC)
+                listed = !memcmp(ans.p + o, W.geo + g, 36) && !memcmp(ans.p + o + 68, W.geo + g + 68, 147);
+            if (!listed && bytes_put(&seed.p, &seed.n, &seed.cap, W.geo + g, ANS_REC)) kept++;
+        }
+        rt_log("shader_prep: %u geometry programs found in the game files, prepared as variants for a point list", W.geo_found);
         RecBuf prg = {0};
         bytes_put(&prg.p, &prg.n, &prg.cap, "TOTKSPRG\1\0\0\0\0\0\0\0", 16);
         bytes_put(&prg.p, &prg.n, &prg.cap, W.progs, W.progs_n);
@@ -738,6 +807,7 @@ done:
         progress(&m.p, ctx);
     }
     free(W.w), free(W.progs), free(W.patch), free(W.rec_co), free(W.cand), free(patch_file), free(pb), free(ans.p);
+    free(W.geo), free(W.geo_tab);
     return rc;
 }
 

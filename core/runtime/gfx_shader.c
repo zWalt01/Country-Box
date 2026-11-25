@@ -562,7 +562,7 @@ static int reflection_valid(const char *res, uint64_t size) {
     const char *st = strstr(b, "\"stage\"");
     if (!st) return 0;
     st = strchr(st + 7, '"');
-    return st && (!strncmp(st, "\"vs\"", 4) || !strncmp(st, "\"ps\"", 4) || !strncmp(st, "\"cs\"", 4));
+    return st && (!strncmp(st, "\"vs\"", 4) || !strncmp(st, "\"ps\"", 4) || !strncmp(st, "\"cs\"", 4) || !strncmp(st, "\"gs\"", 4));
 }
 
 // Every instruction after the header has a word count and the last one ends at the module's end: a module with
@@ -811,7 +811,7 @@ static void reflect(GfxShader *s) {
     const char *js = s->reflection;
     char stage[8];
     json_str(js, js + strlen(js), "stage", stage, sizeof stage);
-    s->stage = !strcmp(stage, "cs") ? GFX_STAGE_CS : !strcmp(stage, "ps") ? GFX_STAGE_FS : GFX_STAGE_VS;
+    s->stage = !strcmp(stage, "cs") ? GFX_STAGE_CS : !strcmp(stage, "ps") ? GFX_STAGE_FS : !strcmp(stage, "gs") ? GFX_STAGE_GS : GFX_STAGE_VS;
     for (int k = 0; k < GFX_RES_KINDS; k++) {
         int count = json_objects(js, kinds[k], NULL, s, k);
         s->res[k] = calloc(count ? count : 1, sizeof *s->res[k]);
@@ -1026,7 +1026,7 @@ static size_t pack_answers(uint8_t *o, const GfxShaderAnswers *a) {
     memcpy(p, a->frag_out_type, 8), p += 8;
     for (int i = 0; i < 3; i++) *p++ = (uint8_t)a->local[i], *p++ = (uint8_t)(a->local[i] >> 8);
     put_u32(&p, a->shared_bytes);
-    *p++ = a->depth_minus_w;
+    *p++ = (uint8_t)((a->depth_minus_w & 1) | a->gs_topology << 1);   // a geometry stage's input rides in the spare bits
     return (size_t)(p - o);
 }
 
@@ -1101,6 +1101,7 @@ static void mask_answers(const GfxShaderAnswers *a, const UseMask *m, GfxShaderA
         if (m->fouts >> i & 1) o->frag_out_type[i] = a->frag_out_type[i];
     memcpy(o->local, a->local, sizeof o->local);
     o->shared_bytes = a->shared_bytes;
+    o->gs_topology = a->gs_topology;
 }
 
 // The cache key of an input id under the current translator.
@@ -1185,7 +1186,13 @@ static size_t build_request(char *o0, const char *hex, const char *stage, const 
        ae8f4f4). Without it a shader that stores to memory is depth-tested late, and the G-buffer draws' EQUAL test
        after the depth prepass fails along contour lines. Already part of the code hash (the whole control section). */
     if (!strcmp(stage, "ps") && (control[0x718] & 1)) o += sprintf(o, ",\"early_fragment_tests\":true");
-    int si = !strcmp(stage, "vs") ? 0 : !strcmp(stage, "cs") ? 2 : 1;   // gfx_shader_set_host answers
+    /* A geometry program is translated for the input it is drawn with (the draw's primitive, vk_exec_draw.c gs_input_of):
+       a geometry shader's input is not in its header, and the SPIR-V declares it (InputPoints, input array sizes). */
+    if (!strcmp(stage, "gs")) {
+        static const char *const topo[GFX_GS_IN_COUNT] = {"points", "lines", "lines_adjacency", "triangles", "triangles_adjacency"};
+        o += sprintf(o, ",\"topology\":\"%s\"", topo[a && a->gs_topology < GFX_GS_IN_COUNT ? a->gs_topology : 0]);
+    }
+    int si = !strcmp(stage, "vs") || !strcmp(stage, "gs") ? 0 : !strcmp(stage, "cs") ? 2 : 1;   // gfx_shader_set_host answers
     if (!host_f64) o += sprintf(o, ",\"softfloat64\":true");
     if (host_sbuf) o += sprintf(o, ",\"sbuf_align\":%u", host_sbuf);
     if (host_sg[si] != 32) o += sprintf(o, ",\"subgroup\":%u", host_sg[si]);
@@ -1253,7 +1260,7 @@ typedef struct {
 
 static int req_init(Req *r, int stage, const uint8_t *control, const uint8_t *code, uint64_t code_size, const uint8_t *c1,
                     const GfxShaderAnswers *a) {
-    r->stage_name = stage == GFX_STAGE_VS ? "vs" : stage == GFX_STAGE_FS ? "ps" : stage == GFX_STAGE_CS ? "cs" : NULL;
+    r->stage_name = stage == GFX_STAGE_VS ? "vs" : stage == GFX_STAGE_FS ? "ps" : stage == GFX_STAGE_CS ? "cs" : stage == GFX_STAGE_GS ? "gs" : NULL;
     if (!r->stage_name) return fail("stage is not translated", NULL), 0;
     uint32_t c1_off;
     memcpy(&c1_off, control + 0x700, 4), memcpy(&r->length, control + 0x704, 4);
@@ -1916,7 +1923,8 @@ static void unpack_answers(const uint8_t *p, GfxShaderAnswers *a) {
     memcpy(a->frag_out_type, p, 8), p += 8;
     for (int i = 0; i < 3; i++) a->local[i] = (uint16_t)(p[0] | p[1] << 8), p += 2;
     memcpy(&a->shared_bytes, p, 4), p += 4;
-    a->depth_minus_w = *p;
+    a->depth_minus_w = *p & 1;
+    a->gs_topology = *p >> 1 & 7;
 }
 
 // Reads a record file's body (after its header) into *body; 0 when absent, and a file with another header is removed.
@@ -2009,6 +2017,15 @@ static void ans_note(const Req *r, int stage, const uint8_t *control, const uint
         RC.pairs_new++;
     }
     plat_mutex_unlock(&RC.lock);
+}
+
+void gfx_shader_seed_record(int stage, const uint8_t code_hash[32], const GfxShaderAnswers *a, int prio, uint8_t *rec) {
+    _Static_assert(GFX_SEED_REC == ANS_REC, "GFX_SEED_REC is ANS_REC");
+    uint32_t st = (uint32_t)stage;
+    memset(rec, 0, ANS_REC);
+    memcpy(rec, &st, 4), memcpy(rec + 4, code_hash, 32);
+    pack_answers(rec + 68, a);
+    rec[ANS_REC - 1] = (uint8_t)prio;
 }
 
 static int rec_append(const char *path, const char *magic, uint32_t version, uint32_t rec_size, const Bytes *b) {
@@ -2207,9 +2224,9 @@ int gfx_shader_prepare_seed(const char *dir, int threads, int procs) {
         ok = plat_file_write_atomic(out, file, sizeof h + u * PRP_REC);
     }
     char msg[640];
-    snprintf(msg, sizeof msg, "gfx_shader: prepared %zu shader variants (vertex %zu, fragment %zu, compute %zu; title %zu, "
+    snprintf(msg, sizeof msg, "gfx_shader: prepared %zu shader variants (vertex %zu, geometry %zu, fragment %zu, compute %zu; title %zu, "
              "warm-up %zu, other %zu) from %lld seed records, %llu translations failed, in %.0f ms; %s %s", u,
-             stages[GFX_STAGE_VS], stages[GFX_STAGE_FS], stages[GFX_STAGE_CS], by[0], by[1], by[2], n,
+             stages[GFX_STAGE_VS], stages[GFX_STAGE_GS], stages[GFX_STAGE_FS], stages[GFX_STAGE_CS], by[0], by[1], by[2], n,
              (unsigned long long)((uint64_t)n_failures - fail0), (double)(plat_now_ns() / 1000000ull) - t0,
              ok ? "wrote" : "cannot write", out);
     rt_log("%s", msg);

@@ -39,8 +39,15 @@ typedef struct {                                           // the translator's a
     uint8_t attr_type[32], frag_out_type[8];               // GFX_TYPE_*
     uint16_t local[3]; uint32_t shared_bytes;
     uint8_t depth_minus_w;
+    uint8_t gs_topology;                                   // a geometry stage: the input it is translated for, GFX_GS_IN_*
 } GfxShaderAnswers;
+enum { GFX_GS_IN_POINTS, GFX_GS_IN_LINES, GFX_GS_IN_LINES_ADJ, GFX_GS_IN_TRIANGLES, GFX_GS_IN_TRIANGLES_ADJ, GFX_GS_IN_COUNT };
 typedef struct GfxShader GfxShader;                        // SPIR-V words + parsed reflection; owned by the cache
+// One record of the seed answers file (shader-answers.bin layout) for a program with the code hash and the answers: how
+// shader_prep asks for a variant that no recording or list holds (a geometry program). prio 0..2 as in the list. rec
+// holds GFX_SEED_REC bytes; the input id stays zero until the variant is translated.
+#define GFX_SEED_REC 216
+void gfx_shader_seed_record(int stage, const uint8_t code_hash[32], const GfxShaderAnswers *a, int prio, uint8_t *rec);
 const GfxShader *gfx_shader_get(int stage, const uint8_t *control, const uint8_t *code, uint64_t code_size,
                                 const uint8_t *c1, const GfxShaderAnswers *a);   // blocks; NULL on failure (counted)
 // As gfx_shader_get with c1 inside the code, but a shader in neither cache is queued to a background translation and
@@ -108,7 +115,7 @@ typedef struct {
     int16_t samp_slot;          // TEX, separate 2: separate sampler slot (handle at 0x568 + 8 slot of c2)
 } GfxShaderRes;
 typedef struct { uint8_t type, comps, packed; } GfxShaderIo;   // GFX_TYPE_*, components, 1 with a Component decoration
-int gfx_shader_stage(const GfxShader *s);                   // GFX_STAGE_VS, GFX_STAGE_FS or GFX_STAGE_CS
+int gfx_shader_stage(const GfxShader *s);                   // GFX_STAGE_VS, GFX_STAGE_GS, GFX_STAGE_FS or GFX_STAGE_CS
 int gfx_shader_resources(const GfxShader *s, int kind, const GfxShaderRes **res);   // count of GFX_RES_* kind; array in *res
 uint32_t gfx_shader_slot_mask(const GfxShader *s);                    // texture/image slots whose type its translation read
 uint32_t gfx_shader_inputs(const GfxShader *s, GfxShaderIo io[32]);    // Input Locations (VS attributes, FS varyings) as a mask

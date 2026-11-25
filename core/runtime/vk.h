@@ -410,6 +410,7 @@ void vk_backend_shutdown(void);            // presents, vk_sync_shutdown, vk_mem
 // vk_pipeline_set_dynamic only and left out of the pipeline key.
 typedef struct VkPipeState {
     const GfxShader *vs, *fs;              // gfx_shader_get results; fs NULL: no fragment stage (depth only)
+    const GfxShader *gs;                   // the program's geometry stage, replayed for a point-list draw only (NULL: none)
     int32_t color_fmt[8];                  // NVNformat of colour target i (OP_SET_RT), 0 none
     int32_t depth_fmt;                     // NVNformat of the depth/stencil target, 0 none
     uint8_t samples;                       // sample count of the targets; 0 or 1 single-sampled
