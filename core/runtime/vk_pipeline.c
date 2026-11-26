@@ -1686,7 +1686,8 @@ static VkPipeline create_graphics(const VkPipeState *s, const GKey *k, const Lay
         if (fcode) fm = make_module(fcode, fw);
     }
     uint32_t *xpatched = NULL;
-    if (s->xfb) {   // a capture draw: the vertex shader carries the transform feedback layout
+    if (s->xfb && s->gs) LOG_ONCE("vk_pipeline: transform feedback with a geometry stage is not captured");   // Country-Box
+    if (s->xfb && !s->gs) {   // a capture draw: the vertex shader carries the transform feedback layout
         uint64_t n2 = 0;
         GfxXfbLayout xl;
         if ((xpatched = spirv_add_xfb(vcode, vw, &n2, gfx_shader_xfb_layout(s->vs, &xl) ? &xl : NULL))) vcode = xpatched, vw = n2;
@@ -2213,11 +2214,15 @@ static struct {
 // record changes meaning without changing size.
 #define KEYS_VERSION 3                 // 3: shaders named by input id (gfx_shader.c)
 typedef struct { char magic[8]; uint32_t version, rec_size; } KeysHeader;
+// Country-Box: the record holds VkPipeState's bytes before its geometry stage field, the layout of every key file and
+// shipped pipeline-list.bin from before geometry stages (a pipeline with one is not recorded: keys_note).
+#define KEY_STATE_BYTES offsetof(VkPipeState, gs)
 typedef struct {
     uint8_t vs[32], fs[32];            // gfx_shader_input_id of each stage; fs all zero with has_fs 0
     uint32_t has_fs, pad;
-    VkPipeState s;                     // vs, fs zero
+    uint8_t s[KEY_STATE_BYTES];        // VkPipeState up to gs, vs and fs zero
 } KeyRec;
+_Static_assert(sizeof(KeyRec) == 424, "KeyRec: the size key files and shipped pipeline lists have (tools/prepare_shaders.py)");
 static struct {
     char path[PATH_MAX];
     int header_ok;                     // the file exists with our header: append
@@ -2270,14 +2275,15 @@ static void rec_fill(KeyRec *r, const VkPipeState *s) {
     memset(r, 0, sizeof *r);
     memcpy(r->vs, gfx_shader_input_id(s->vs), 32);
     if (s->fs) memcpy(r->fs, gfx_shader_input_id(s->fs), 32), r->has_fs = 1;
-    r->s = *s;
-    r->s.vs = r->s.fs = NULL;
-    r->s.prim_restart = 0;   // dynamic state: the same pipeline either way
+    VkPipeState t = *s;
+    t.vs = t.fs = NULL;
+    t.prim_restart = 0;   // dynamic state: the same pipeline either way
+    memcpy(r->s, &t, sizeof r->s);
 }
 
 // A pipeline was built for a draw: queue its record for the file. Caller holds P.lock.
 static void keys_note(const VkPipeState *s) {
-    if (!A.on || !K.path[0]) return;
+    if (!A.on || !K.path[0] || s->gs) return;   // the record has no room for a geometry stage (KeyRec)
     KeyRec r;
     rec_fill(&r, s);
     if (!seen_add(rec_hash(&r))) return;
@@ -2893,7 +2899,9 @@ static uint32_t prewarm_keys(int boot) {
             dropped++;
             continue;
         }
-        VkPipeState s = r[i].s;
+        VkPipeState s;
+        memset(&s, 0, sizeof s);
+        memcpy(&s, r[i].s, sizeof r[i].s);
         s.vs = vs, s.fs = fs;
         GKey k;
         gkey_fill(&s, &k);

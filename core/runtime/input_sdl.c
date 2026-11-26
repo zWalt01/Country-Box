@@ -830,8 +830,22 @@ void input_poll(uint64_t *buttons, int32_t *lx, int32_t *ly, int32_t *rx, int32_
 // ---- Country-Box co-op: a second gamepad as player 2 (ov_input.c reports it as controller id 1, full-key). Buttons
 // and sticks only, with player 1's layout, bindings and dead zone; no keyboard, rumble or motion.
 
+// Experimental and opt-in: MP4_COOP=1 (environment, or "coop = 1" in mp4.ini). Off by default, so a second device SDL
+// sees as a gamepad (the Steam Deck's own controls plus an external pad, a wheel) never turns a game into two players.
+// Read through cfg_get, not cfg_bool: it has no row in the settings table (no menu entry while it is experimental).
+static int coop_enabled(void) {
+    static int on = -1;
+    if (on < 0) {
+        const char *e = cfg_get("MP4_COOP");
+        on = e && *e && strcmp(e, "0") != 0;
+        if (on) rt_log("input: co-op on (MP4_COOP, experimental): a second gamepad joins as player 2");
+    }
+    return on;
+}
+
 // Under lock: open the first gamepad player 1 does not have when player 2 has none or its own went away.
 static void scan_pad2(void) {
+    if (!coop_enabled()) return;
     if (pad2 && SDL_GamepadConnected(pad2)) return;
     if (pad2) { SDL_CloseGamepad(pad2); pad2 = NULL; rt_log("input: player 2 gamepad disconnected"); }
     if (!pad) return;   // player 1 takes the first gamepad

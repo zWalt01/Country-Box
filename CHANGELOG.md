@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.9 — 2026-11-25
+
+Heads up: you may see a bit more movement in Country-Box from now on. My final exams are over (and they went
+well!), so I have more time for it again.
+
+- **Tropical Freeze's particle effects are back (experimental)** — bubbles underwater, balloon pops, the clouds and
+  stars when an enemy is defeated, banana coin shine, smashed rocks. The game draws them with *geometry shaders*,
+  a shader stage Country-Box ignored, so every particle reached the GPU as a bare dot. Contributed by
+  [@llethas](https://github.com/llethas) ([#27](https://github.com/zWalt01/Country-Box/pull/27)), combined with our
+  own branch for the same fix ([#17](https://github.com/zWalt01/Country-Box/issues/17)). Tropical Freeze prepares its
+  shaders once more after updating. A short hitch can still happen the first time an effect appears.
+- **Local two-player co-op (experimental, off by default)** — a second controller joins as player 2 in both games.
+  Contributed by [@oSyphon](https://github.com/oSyphon) ([#25](https://github.com/zWalt01/Country-Box/pull/25)). Turn
+  it on with `MP4_COOP=1` (Steam launch options: `MP4_COOP=1 %command%`) or `coop = 1` in the game's `mp4.ini`.
+  Player 2 has no rumble or gyro yet.
+
 ## 1.0.8 — 2026-11-22
 
 - **Preparing a game works again when the AppImage is in a folder with spaces** (for example

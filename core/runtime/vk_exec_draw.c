@@ -114,11 +114,11 @@ static struct {
     VkBuffer sup_buf;
     VkDeviceSize sup_off;
     int sup_valid;
-    uint8_t c0[3][VK_C0_BYTES];          // last c0 bank per stage (vertex, fragment, compute) and where it lives
-    VkBuffer c0_buf[3];
-    VkDeviceSize c0_off[3];
-    int c0_valid[3];
-    struct { p_bind_buf ssbo[16], ubo[16]; uint32_t dim[3], binst; } c0_in[3];   // what vk_c0_fill read for c0[k]
+    uint8_t c0[4][VK_C0_BYTES];          // last c0 bank per stage (vertex, fragment, compute, geometry) and where it lives
+    VkBuffer c0_buf[4];
+    VkDeviceSize c0_off[4];
+    int c0_valid[4];
+    struct { p_bind_buf ssbo[16], ubo[16]; uint32_t dim[3], binst; } c0_in[4];   // what vk_c0_fill read for c0[k]
     VkPipelineLayout ds_layout;          // graphics layout the sets below were last pushed or bound with
     VkDescriptorSet ds_bound[2];         // allocated set bound per set number (0: none or pushed since)
     VkDescriptorSet ds_last[2];          // last allocated and written set per set number, contents in DS
@@ -916,7 +916,9 @@ static int c0_on(void) {   // MP4_FIX_C0=0: c0 reads zeros instead of the driver
 
 // c0 from replay scratch; a bank equal to the stage's previous one reuses its range, so it costs no copy.
 static VkDescriptorBufferInfo c0_info(VkExec *ex, int st) {
-    int k = st == NVN_STAGE_VS ? 0 : st == NVN_STAGE_FS ? 1 : 2;
+    // Country-Box: a geometry stage has a slot of its own; sharing compute's let a compute dispatch with equal inputs
+    // reuse the geometry stage's (all-zero) bank
+    int k = st == NVN_STAGE_VS ? 0 : st == NVN_STAGE_FS ? 1 : st == NVN_STAGE_GS ? 3 : 2;
     // vk_c0_fill reads the storage slots, and the uniform slots and dispatch size for compute or the base instance for
     // graphics: equal inputs give the same bank, so neither the fill nor the 2 KiB compare is needed.
     typeof(B.c0_in[0]) in;

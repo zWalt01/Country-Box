@@ -128,6 +128,9 @@ static class SwshXlate
                 false /* 不做 Y 取反 | no Y flip */, true /* 原点左上 | origin upper-left */, false);
         }
         public bool QueryHostSupportsDepthClipControl() => true;
+        // Country-Box: Vulkan has no NV_geometry_shader_passthrough on AMD and Intel; a passthrough geometry shader is
+        // emitted as an ordinary one that copies its inputs (Ryujinx EmitterContext.PrepareForReturn).
+        public bool QueryHostSupportsGeometryShaderPassthrough() => false;
         // Vulkan: the ConstOffset / ConstOffsets image operands Ryujinx emits must be constants. A TLD4.PTP whose offsets
         // come from registers (agl_technique_pfx compute b940aa86, dfe7662f) otherwise becomes an OpConstantComposite over
         // computed ids, which spirv-val rejects; false makes TexturePass emulate only non-constant offsets.

@@ -410,7 +410,6 @@ void vk_backend_shutdown(void);            // presents, vk_sync_shutdown, vk_mem
 // vk_pipeline_set_dynamic only and left out of the pipeline key.
 typedef struct VkPipeState {
     const GfxShader *vs, *fs;              // gfx_shader_get results; fs NULL: no fragment stage (depth only)
-    const GfxShader *gs;                   // the program's geometry stage, replayed for a point-list draw only (NULL: none)
     int32_t color_fmt[8];                  // NVNformat of colour target i (OP_SET_RT), 0 none
     int32_t depth_fmt;                     // NVNformat of the depth/stencil target, 0 none
     uint8_t samples;                       // sample count of the targets; 0 or 1 single-sampled
@@ -433,6 +432,10 @@ typedef struct VkPipeState {
     ds_st ds;
     uint32_t vattr[16];                    // OP_BIND_VATTR: va_st words; attribute i feeds vertex shader Location i
     vs_st vstream[16];                     // OP_BIND_VSTREAM
+    // The program's geometry stage, replayed for a draw with a geometry input (NULL: none). Country-Box: last, so that
+    // everything before it keeps the layout pipeline-keys.bin and the shipped pipeline-list.bin store (vk_pipeline.c
+    // KeyRec holds the bytes before gs; a pipeline with a geometry stage is not recorded).
+    const GfxShader *gs;
 } VkPipeState;
 void vk_pipe_state_defaults(VkPipeState *s);   // NVN defaults of every state object (shaders and formats left 0)
 enum { VK_PIPE_SUPPORT = GFX_RES_KINDS };      // VkPipeBinding.kind of the support buffer

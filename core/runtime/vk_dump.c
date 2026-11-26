@@ -544,7 +544,9 @@ static void flush_luts(VkExec *ex, int n) {
     nluts = 0;
 }
 
-static int nvn_stage(int gfx_stage) { return gfx_stage == GFX_STAGE_VS ? 0 : gfx_stage == GFX_STAGE_FS ? 1 : 5; }
+static int nvn_stage(int gfx_stage) {
+    return gfx_stage == GFX_STAGE_VS ? 0 : gfx_stage == GFX_STAGE_FS ? 1 : gfx_stage == GFX_STAGE_GS ? 2 : 5;
+}
 
 static const char *decl_type(uint16_t t, char tmp[24]) {
     static const char *base[] = {"?", "1D", "buffer", "2D", "3D", "cube"};
@@ -823,10 +825,12 @@ void vk_dump_draw(VkExec *ex, const VkPipeState *s, VkPipeline p, const VkPipeIn
             if (f) fwrite(ex->prog->sd[i].control, 1, 0x880, f), fclose(f);
         }
     Str b = {0};
-    sp(&b, "vs %016llx fs %016llx prog %llu (vs of %llu, fs of %llu, bind stages %#x) prim %d%s\n", (unsigned long long)shader_hash(s->vs),
+    char gs_note[40] = "";   // Country-Box: the geometry stage, when the pipeline has one
+    if (s->gs) snprintf(gs_note, sizeof gs_note, " gs %016llx", (unsigned long long)shader_hash(s->gs));
+    sp(&b, "vs %016llx fs %016llx prog %llu (vs of %llu, fs of %llu, bind stages %#x) prim %d%s%s\n", (unsigned long long)shader_hash(s->vs),
        (unsigned long long)shader_hash(s->fs), (unsigned long long)(ex->prog ? ex->prog->serial : 0),
        (unsigned long long)(ex->stage_prog[0] ? ex->stage_prog[0]->serial : 0), (unsigned long long)(ex->stage_prog[1] ? ex->stage_prog[1]->serial : 0),
-       (unsigned)ex->prog_stages, s->prim, ex->xfb_active ? " xfb" : "");
+       (unsigned)ex->prog_stages, s->prim, ex->xfb_active ? " xfb" : "", gs_note);
     state_line(&b, ex, s);
     describe_bindings(&b, ex, info);
     last_ent = nents;
