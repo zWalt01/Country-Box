@@ -20,6 +20,10 @@ As with modern games, shaders are prepared after installation, and the game cann
 
 Coverage of what the PC sweep recorded (907 programs at 18:11): **900** come from the game files, **4** more with control-section patches (`games/dkcrhd/shader-patches.bin`: 8-byte fields that the game writes into the control section at runtime, values like `478000003f00xxxx`, meaning not yet known; each patch is verified by hash), and **3** not at all (two with different code, probably c1 constants written at runtime; one with the control section rewritten, magic 0x98761201). Those three only come from recordings made by the installation itself (`shader-programs.bin`, fallback). Preparation writes `shader-patches.found.bin` when it finds new patches.
 
+## Geometry programs (Tropical Freeze)
+
+A geometry stage has no recorded answers but its input primitive (`gs_topology`), so every geometry program the scanner finds in the game files is its own variant, translated for a point list (`shader_prep.c` `geo_add`, 720 in `MaterialArchive.arc`); they are not in `shader-list.bin`. The list holds the geometry variants that are not that: the ones drawn with another input primitive and the ones that sample textures (answers), as recorded in play. The marker's `geometry-programs` line makes an install prepared before geometry stages were replayed run the preparation once more. Geometry pipelines are not prepared (not in `pipeline-list.bin`; they are built on first use).
+
 ## Driver cache
 
 Stage libraries live in the driver's on-disk cache. *Measured*: preparation sets `MESA_SHADER_CACHE_DIR=<install>/driver-cache` (and `MESA_SHADER_CACHE_MAX_SIZE=4G`, and `__GL_SHADER_DISK_CACHE_PATH` for NVIDIA) before creating the device; 11 MB after preparing 904 variants. This way another game, or a launch in a different environment (Steam / outside Steam), does not empty it. `CB_DRIVER_CACHE=system` uses the system cache.

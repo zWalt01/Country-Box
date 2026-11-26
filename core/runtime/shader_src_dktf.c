@@ -59,8 +59,9 @@ static size_t inflate_at(const uint8_t *src, size_t n, uint8_t *out, size_t cap,
 // VS+GS+FS triples — raw control stage 0x714 values {0 vertex, 1 fragment, 2 geometry} and nothing else — and the
 // geometry control sits between the fragment and the vertex one, so stopping at it would lose the vertex program
 // after it (768 of them wanted by the list, measured: 763 of the 777 "not found" programs of the 2026-11-12 list).
-// The geometry block is still part of the code chain: consume it and keep walking. Geometry programs never reach
-// the sink (every recording of four installs holds stages vertex/fragment only), so nothing is emitted for them.
+// The geometry block is still part of the code chain: consume it and keep walking, and hand it to the sink like the
+// others: a geometry program is a point sprite expander (720 in MaterialArchive.arc, all 4 vertices of a triangle strip
+// out), and the draw path replays it (vk_exec_draw.c) since it is needed to see Tropical Freeze's particle effects.
 static long pool_programs(const uint8_t *b, size_t n, ShaderProgSink sink, void *ctx) {
     static const uint8_t magic[4] = {0x34, 0x12, 0x76, 0x98};
     const uint8_t *first = memmem(b, n, magic, 4);
@@ -69,7 +70,7 @@ static long pool_programs(const uint8_t *b, size_t n, ShaderProgSink sink, void 
     for (const uint8_t *m = first; m && (size_t)(m - b) + CONTROL_STRIDE <= n; m += CONTROL_STRIDE) {
         if (rd32le(m) != CONTROL_MAGIC) break;
         uint32_t len = rd32le(m + 0x704), st = rd32le(m + 0x714);
-        int stage = st == 0 ? GFX_STAGE_VS : st == 1 ? GFX_STAGE_FS : st == 5 ? GFX_STAGE_CS : -1;
+        int stage = st == 0 ? GFX_STAGE_VS : st == 1 ? GFX_STAGE_FS : st == 2 ? GFX_STAGE_GS : st == 5 ? GFX_STAGE_CS : -1;
         if (len < 4 || code_at + len > (size_t)(first - b)) break;
         uint32_t cm = rd32le(b + code_at);
         if (cm != (st == 5 ? 0x12345679u : 0x12345678u)) break;

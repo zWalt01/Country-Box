@@ -39,10 +39,11 @@
 #define SUPPORT_BYTES 1408u   // Ryujinx SupportBuffer (std140): alpha_test, is_bgra[8], viewport_inverse, viewport_size, ...
 #define NVN_STAGE_VS 0
 #define NVN_STAGE_FS 1
+#define NVN_STAGE_GS 2
 #define NVN_STAGE_CS 5
 #define ONESHOT_WAIT_MS 30000u   // prepare_draw: how long a one-shot draw waits for its pipeline before it is skipped
 
-enum { W_PROGRAM, W_SHADER, W_PIPELINE, W_NO_VS, W_INDEX, W_UB, W_BIND, W_SSBO_ALIGN, W_SSBO_SLOT, W_RESTART, W_INDIRECT, W_COUNT };
+enum { W_PROGRAM, W_SHADER, W_PIPELINE, W_NO_VS, W_INDEX, W_UB, W_BIND, W_SSBO_ALIGN, W_SSBO_SLOT, W_RESTART, W_INDIRECT, W_GEOMETRY, W_COUNT };
 
 static void warn_once(int key, const char *fmt, ...) {
     static volatile long seen[W_COUNT];
@@ -738,6 +739,7 @@ static void answers_for(VkExec *ex, int st, const uint8_t *ctl, uint32_t mask, G
     memset(a, 0, sizeof *a);
     if (st == NVN_STAGE_VS) vk_pipeline_answers(&ex->pipe, a, NULL);
     else if (st == NVN_STAGE_FS) vk_pipeline_answers(&ex->pipe, NULL, a);
+    else if (st == NVN_STAGE_GS) a->gs_topology = (uint8_t)ex->gs_topo;   // the only thing a geometry stage is asked
     else
         for (int k = 0; k < 3; k++) {
             uint32_t l;
@@ -802,7 +804,7 @@ static const GfxShader *shader_for(VkExec *ex, int st, int *present, int *pendin
             return set[0].s;
         }
     }
-    int gs = st == NVN_STAGE_VS ? GFX_STAGE_VS : st == NVN_STAGE_FS ? GFX_STAGE_FS : GFX_STAGE_CS;
+    int gs = st == NVN_STAGE_VS ? GFX_STAGE_VS : st == NVN_STAGE_FS ? GFX_STAGE_FS : st == NVN_STAGE_GS ? GFX_STAGE_GS : GFX_STAGE_CS;
     const GfxShader *s = await ? gfx_shader_await(gs, ctl, code, len, &a)
                        : pending && vk_pipeline_async_on() ? gfx_shader_get_async(gs, ctl, code, len, &a, pending)
                                                            : gfx_shader_get(gs, ctl, code, len, NULL, &a);
@@ -820,7 +822,7 @@ static const GfxShader *shader_for(VkExec *ex, int st, int *present, int *pendin
 // ---- descriptors
 
 static int nvn_stage_of(int gfx_stage) {
-    return gfx_stage == GFX_STAGE_VS ? NVN_STAGE_VS : gfx_stage == GFX_STAGE_FS ? NVN_STAGE_FS : NVN_STAGE_CS;
+    return gfx_stage == GFX_STAGE_VS ? NVN_STAGE_VS : gfx_stage == GFX_STAGE_FS ? NVN_STAGE_FS : gfx_stage == GFX_STAGE_GS ? NVN_STAGE_GS : NVN_STAGE_CS;
 }
 
 static VkDescriptorBufferInfo zero_info(uint64_t max) {
@@ -2148,6 +2150,20 @@ static int pipe_memo_on(void) {
 }
 
 // Pass, shaders, pipeline, fixed state and resources for a draw. 0: the draw is skipped.
+// The input a geometry stage is translated for, from the draw's primitive: the class of the Vulkan topology the replay draws it
+// with (the topology the geometry shader's InputPoints / InputLines / ... has to match); -1: quads, quad strips and polygons,
+// which the replay turns into triangles the game's shader never sees.
+static int gs_input_of(int prim) {
+    switch (prim) {
+    case NVN_DRAW_PRIMITIVE_POINTS: return GFX_GS_IN_POINTS;
+    case NVN_DRAW_PRIMITIVE_LINES: case NVN_DRAW_PRIMITIVE_LINE_LOOP: case NVN_DRAW_PRIMITIVE_LINE_STRIP: return GFX_GS_IN_LINES;
+    case NVN_DRAW_PRIMITIVE_LINES_ADJACENCY: case NVN_DRAW_PRIMITIVE_LINE_STRIP_ADJACENCY: return GFX_GS_IN_LINES_ADJ;
+    case NVN_DRAW_PRIMITIVE_TRIANGLES: case NVN_DRAW_PRIMITIVE_TRIANGLE_STRIP: case NVN_DRAW_PRIMITIVE_TRIANGLE_FAN: return GFX_GS_IN_TRIANGLES;
+    case NVN_DRAW_PRIMITIVE_TRIANGLES_ADJACENCY: case NVN_DRAW_PRIMITIVE_TRIANGLE_STRIP_ADJACENCY: return GFX_GS_IN_TRIANGLES_ADJ;
+    default: return -1;
+    }
+}
+
 static int prepare_draw(VkExec *ex, int prim, int32_t count, int restart) {
     if (ex->render_disabled) return 0;
     cb_res(ex);
@@ -2182,20 +2198,35 @@ static int prepare_draw(VkExec *ex, int prim, int32_t count, int restart) {
             memo_key(ex, gen, &SM.k), SM.vs = vs, SM.fs = fs, SM.has_fs = has_fs, SM.valid = 1;
     }
     if (!has_vs) return warn_once(W_NO_VS, "a draw with a program that has no vertex stage is skipped"), 0;
+    // A geometry stage (Tropical Freeze's point sprites: one point in, a 4-vertex triangle strip out) is replayed for a
+    // point-list draw, the input its translation declares (gfx_shader.c build_request); a program drawn with another
+    // primitive keeps to its vertex and fragment stages, as every program did before geometry stages were replayed.
+    int has_gs = 0, gs_wait = 0, gs_in = gs_input_of(prim);
+    const GfxShader *gsh = NULL;
+    if (gs_in >= 0) {
+        ex->gs_topo = gs_in;
+        gsh = shader_for(ex, NVN_STAGE_GS, &has_gs, &gs_wait, 0);
+    } else {
+        const uint8_t *gctl, *gcode;
+        uint32_t glen;
+        if (vk_exec_find_stage(ex->prog, NVN_STAGE_GS, &gctl, &gcode, &glen))
+            warn_once(W_GEOMETRY, "a program with a geometry stage is drawn with primitive %d, which Vulkan has no geometry input for: its geometry stage is not replayed", prim);
+    }
     // A draw into a target the previous frame did not render (or into none) waits for a pending shader or pipeline:
     // one-shot draws (volumes and LUTs generated once, later only sampled) would leave their target empty for the
     // session. A draw into per-frame targets is skipped until they are ready and comes back next frame.
     int oneshot = -1, skip = pipe_skip_mode();   // -1: not looked up
-    if (vs_wait || fs_wait) {
+    if (vs_wait || fs_wait || gs_wait) {
         if (!(oneshot = !vk_exec_targets_recent(ex, skip >= 1))) return perf_count(PERF_CNT_SHADER_SKIP), 0;   // skipped until ready
         perf_count(PERF_CNT_ONESHOT_WAIT);
         if (vs_wait) vs = shader_for(ex, NVN_STAGE_VS, &has_vs, NULL, 1);
         if (fs_wait) fs = shader_for(ex, NVN_STAGE_FS, &has_fs, NULL, 1);
+        if (gs_wait) ex->gs_topo = gs_in, gsh = shader_for(ex, NVN_STAGE_GS, &has_gs, NULL, 1);
     }
-    if (!vs || (has_fs && !fs)) return 0;
+    if (!vs || (has_fs && !fs) || (has_gs && !gsh)) return 0;
     uint32_t fbl = feedback_prepare(ex, fs);
     VkPipeState s = ex->pipe;
-    s.vs = vs, s.fs = fs;
+    s.vs = vs, s.fs = fs, s.gs = gsh;
     s.feedback = (uint8_t)((fbl & 0xff ? 1 : 0) | (fbl & 0x100 ? 2 : 0));
     s.prim = (uint8_t)prim;
     s.depth_minus_w = (uint8_t)(nvn_depth_minus_w() != 0);

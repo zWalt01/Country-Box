@@ -107,6 +107,14 @@ The texture builder translates the game's texture-format enumeration into GPU fo
 
 All of them have a path in the runtime; none falls into "unsupported format".
 
+### Geometry stages: the particle effects (2026-11-24, *measured*; issue #17)
+
+Tropical Freeze's programs are vertex + geometry + fragment triples in 720 of the 1 374 pools of `MaterialArchive.arc` (the other 654 have no geometry stage). All 720 geometry programs have the same header: a triangle strip of at most 4 vertices out, one invocation per input primitive, not passthrough (`ShaderHeader` words at code+0x30: `ThreadsPerInputPrimitive` 1, `OutputTopology` 7, `MaxOutputVertexCount` 4): a point sprite expander, one quad per point. The game draws them as point lists (more than 120 000 draws in the first half of 1-1, 1–56 points each); the replay used to look up only the vertex and fragment stage, so every particle of these programs was a one-pixel point (balloon pops, bubbles, defeat clouds and stars, coin shine, smashed rocks). Three of the 720 programs were also drawn as line lists/strips in the same stretch, and five sample textures.
+
+A geometry shader's input primitive is not in its header (the SPIR-V declares it), so it is part of the shader's identity: `GfxShaderAnswers.gs_topology`, carried in the spare bits of the `depth_minus_w` byte of the packed answers (zero for every other stage, so no record layout or existing key changes). Points, lines, triangles and their adjacency variants are replayed; quads, quad strips and polygons (which the replay turns into triangles) are not, with a warning.
+
+Measured with a headless software-Vulkan test (llvmpipe, validation layers) on 48 distinct programs of the archive: the geometry stage draws 2–4 times the texels of the vertex/fragment-only draw on 41 of them with no validation errors. The seven that draw nothing there need real vertex data to judge. Not yet done: geometry pipelines are not in the pipeline list (they are built on first use, in the background, like any other).
+
 ### Graphics thread (`g100a`, 6–8 ms per frame) — profile of this thread only (`MP4_PROFILE_THREAD=g100a`)
 
 Samples (1 kHz, including when the thread waits): C library 83 % (66 % waiting on futex, **9 % `sched_yield`**, 3.4 % driver `ioctl`, ~2 % close/fstat/lseek), game code 11 % (the UI middleware and the graphics pool allocator), runtime 3.5 %, Mesa Vulkan driver 1.8 %. The `sched_yield` was the presentation pacing of `nvnWindowAcquireTexture` (1–2 ms of spinning per frame); it now uses a single sleep. The pools that grew by about one per frame (830 → 2037 over 1200 frames) were a leak caused by the runtime, not allocator churn: `nvnTextureGetZCullStorageSize` returned 0 and `SaveZCullInformation` created an empty pool every frame (fixed and verified). The close/fstat/lseek calls are not yet explained (those empty pools did not open file descriptors); to be measured with a new profile.
