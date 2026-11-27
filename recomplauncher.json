@@ -24,8 +24,8 @@
         "{data}/games/dkcrhd/mp4.ini",
         "{local}/country-box/games/dkcrhd/profile",
         "{local}/country-box/games/dkcrhd/mp4.ini",
-        "{install}/Country-Box-data/games/dkcrhd/profile",
-        "{install}/Country-Box-data/games/dkcrhd/mp4.ini"
+        "{install}/../Country-Box-data/games/dkcrhd/profile",
+        "{install}/../Country-Box-data/games/dkcrhd/mp4.ini"
       ]
     },
     {
@@ -40,15 +40,14 @@
         "{data}/games/dkctf/mp4.ini",
         "{local}/country-box/games/dkctf/profile",
         "{local}/country-box/games/dkctf/mp4.ini",
-        "{install}/Country-Box-data/games/dkctf/profile",
-        "{install}/Country-Box-data/games/dkctf/mp4.ini"
+        "{install}/../Country-Box-data/games/dkctf/profile",
+        "{install}/../Country-Box-data/games/dkctf/mp4.ini"
       ]
     }
   ],
   "start": {
     "program": [
       "Country-Box-linux-x86_64.AppImage",
-      "Country-Box-1.0.5-linux-x86_64.AppImage",
       "AppRun",
       "usr/bin/country-box-launcher"
     ],
@@ -57,7 +56,6 @@
   "prepare": {
     "program": [
       "Country-Box-linux-x86_64.AppImage",
-      "Country-Box-1.0.5-linux-x86_64.AppImage",
       "AppRun",
       "usr/bin/country-box-launcher"
     ],
@@ -75,11 +73,15 @@
       "file": [
         {
           "path": "{data}/games/dkcrhd/mp4.ini",
-          "if": "{data}/games"
+          "if": "{data}/.country-box-data-copied"
         },
         {
-          "path": "{install}/Country-Box-data/games/dkcrhd/mp4.ini",
-          "if": "{install}/Country-Box-data"
+          "path": "{install}/../Country-Box-data/games/dkcrhd/mp4.ini",
+          "if": "{install}/../Country-Box-data/games"
+        },
+        {
+          "path": "{data}/games/dkcrhd/mp4.ini",
+          "if": "{data}/games"
         },
         {
           "path": "{local}/country-box/games/dkcrhd/mp4.ini",
@@ -96,11 +98,15 @@
       "file": [
         {
           "path": "{data}/games/dkctf/mp4.ini",
-          "if": "{data}/games"
+          "if": "{data}/.country-box-data-copied"
         },
         {
-          "path": "{install}/Country-Box-data/games/dkctf/mp4.ini",
-          "if": "{install}/Country-Box-data"
+          "path": "{install}/../Country-Box-data/games/dkctf/mp4.ini",
+          "if": "{install}/../Country-Box-data/games"
+        },
+        {
+          "path": "{data}/games/dkctf/mp4.ini",
+          "if": "{data}/games"
         },
         {
           "path": "{local}/country-box/games/dkctf/mp4.ini",
@@ -414,11 +420,15 @@
     "saves": [
       {
         "path": "{data}/games",
-        "if": "{data}/games"
+        "if": "{data}/.country-box-data-copied"
       },
       {
-        "path": "{install}/Country-Box-data/games",
-        "if": "{install}/Country-Box-data"
+        "path": "{install}/../Country-Box-data/games",
+        "if": "{install}/../Country-Box-data/games"
+      },
+      {
+        "path": "{data}/games",
+        "if": "{data}/games"
       },
       {
         "path": "{local}/country-box/games",
@@ -431,11 +441,15 @@
     "logs": [
       {
         "path": "{data}/logs",
-        "if": "{data}/logs"
+        "if": "{data}/.country-box-data-copied"
       },
       {
-        "path": "{install}/Country-Box-data/logs",
-        "if": "{install}/Country-Box-data"
+        "path": "{install}/../Country-Box-data/logs",
+        "if": "{install}/../Country-Box-data/logs"
+      },
+      {
+        "path": "{data}/logs",
+        "if": "{data}/logs"
       },
       {
         "path": "{local}/country-box/logs",
