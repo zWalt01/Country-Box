@@ -2210,19 +2210,23 @@ static struct {
 // enters each Pipe as building under the key a draw would compute, queues it to the low queue and builds the queue on
 // every core. Records are deduplicated by a hash of their bytes; they are collected under P.lock by the worker that
 // built the pipeline and appended by the present thread (vk_pipeline_autosave) or at exit (vk_pipeline_save). A file
-// with another magic, version or record size is ignored and rewritten. Bump KEYS_VERSION when VkPipeState or the
+// with another magic, version or record size (version 3 apart, read as below) is ignored and rewritten. Bump KEYS_VERSION when VkPipeState or the
 // record changes meaning without changing size.
-#define KEYS_VERSION 3                 // 3: shaders named by input id (gfx_shader.c)
+#define KEYS_VERSION 4                 // 3: shaders named by input id (gfx_shader.c); 4: and the geometry stage (has_gs, gs)
 typedef struct { char magic[8]; uint32_t version, rec_size; } KeysHeader;
-// Country-Box: the record holds VkPipeState's bytes before its geometry stage field, the layout of every key file and
-// shipped pipeline-list.bin from before geometry stages (a pipeline with one is not recorded: keys_note).
+// Country-Box: the record holds VkPipeState's bytes before its geometry stage field, then the geometry stage's input id.
+// Version 3 (every key file and shipped pipeline-list.bin from before geometry pipelines were recorded) is the record
+// without that id: keys_open reads it and the file is rewritten as version 4.
 #define KEY_STATE_BYTES offsetof(VkPipeState, gs)
 typedef struct {
     uint8_t vs[32], fs[32];            // gfx_shader_input_id of each stage; fs all zero with has_fs 0
-    uint32_t has_fs, pad;
+    uint32_t has_fs, has_gs;           // has_gs: the version 3 field "pad", 0 in every record of that version
     uint8_t s[KEY_STATE_BYTES];        // VkPipeState up to gs, vs and fs zero
+    uint8_t gs[32];                    // input id of the geometry stage, zero with has_gs 0; last: the bytes before it are a version 3 record
 } KeyRec;
-_Static_assert(sizeof(KeyRec) == 424, "KeyRec: the size key files and shipped pipeline lists have (tools/prepare_shaders.py)");
+#define KEY_REC_V3 offsetof(KeyRec, gs)   // a version 3 record is this record without its geometry stage
+_Static_assert(KEY_REC_V3 == 424, "KeyRec: the first bytes are the version 3 record shipped lists and key files have");
+_Static_assert(sizeof(KeyRec) == 456, "KeyRec: the size of key files and shipped pipeline lists (tools/prepare_shaders.py KEY_REC)");
 static struct {
     char path[PATH_MAX];
     int header_ok;                     // the file exists with our header: append
@@ -2275,15 +2279,16 @@ static void rec_fill(KeyRec *r, const VkPipeState *s) {
     memset(r, 0, sizeof *r);
     memcpy(r->vs, gfx_shader_input_id(s->vs), 32);
     if (s->fs) memcpy(r->fs, gfx_shader_input_id(s->fs), 32), r->has_fs = 1;
+    if (s->gs) memcpy(r->gs, gfx_shader_input_id(s->gs), 32), r->has_gs = 1;
     VkPipeState t = *s;
-    t.vs = t.fs = NULL;
+    t.vs = t.fs = t.gs = NULL;
     t.prim_restart = 0;   // dynamic state: the same pipeline either way
     memcpy(r->s, &t, sizeof r->s);
 }
 
 // A pipeline was built for a draw: queue its record for the file. Caller holds P.lock.
 static void keys_note(const VkPipeState *s) {
-    if (!A.on || !K.path[0] || s->gs) return;   // the record has no room for a geometry stage (KeyRec)
+    if (!A.on || !K.path[0]) return;
     KeyRec r;
     rec_fill(&r, s);
     if (!seen_add(rec_hash(&r))) return;
@@ -2335,15 +2340,24 @@ static void keys_open(void) {
     fseek(f, 0, SEEK_END);
     long len = ftell(f);
     fseek(f, 0, SEEK_SET);
-    if (len >= (long)sizeof h && fread(&h, sizeof h, 1, f) == 1 && !memcmp(h.magic, "TOTKPKEY", 8) &&
-        h.version == KEYS_VERSION && h.rec_size == sizeof(KeyRec)) {
-        K.header_ok = 1;
-        size_t n = ((size_t)len - sizeof h) / sizeof(KeyRec);
-        if (n && (K.file = malloc(n * sizeof(KeyRec))) && fread(K.file, sizeof(KeyRec), n, f) == n) K.file_n = n;
-        else free(K.file), K.file = NULL;
+    int v3 = len >= (long)sizeof h && fread(&h, sizeof h, 1, f) == 1 && h.version == 3 && h.rec_size == KEY_REC_V3;
+    if (len >= (long)sizeof h && (v3 || (h.version == KEYS_VERSION && h.rec_size == sizeof(KeyRec))) && !memcmp(h.magic, "TOTKPKEY", 8)) {
+        K.header_ok = !v3;   // a version 3 file is rewritten as version 4 from what was read (no geometry stage in any record)
+        size_t rs = v3 ? KEY_REC_V3 : sizeof(KeyRec), n = ((size_t)len - sizeof h) / rs;
+        if (n && (K.file = calloc(n, sizeof(KeyRec)))) {
+            size_t got = 0;
+            if (v3) {
+                while (got < n && fread((KeyRec *)K.file + got, KEY_REC_V3, 1, f) == 1) got++;
+            } else {
+                got = fread(K.file, sizeof(KeyRec), n, f);
+            }
+            if (got == n) K.file_n = n;
+            else free(K.file), K.file = NULL;
+        }
         for (size_t i = 0; i < K.file_n; i++) seen_add(rec_hash((const KeyRec *)K.file + i));
-        if (len != (long)(sizeof h + n * sizeof(KeyRec)))   // a torn append: rewrite the file from what was read
+        if (len != (long)(sizeof h + n * rs))   // a torn append: rewrite the file from what was read
             K.header_ok = 0;
+        if (v3 && K.file_n) rt_log("vk_pipeline: %s: %zu version 3 records, rewritten as version 4", K.path, K.file_n);
     } else {
         rt_log("vk_pipeline: %s has another format or version; it is rewritten", K.path);
     }
@@ -2469,7 +2483,7 @@ static void pipe_worker(void *arg) {
         j->p->job = NULL;
         if (pipe) {
             P.stats.graphics++, P.stats.async_built++;
-            if (!j->prebuild && !j->s.gs) keys_note(&j->s);
+            if (!j->prebuild) keys_note(&j->s);
         } else {
             P.stats.failures++;
             rt_log("vk_pipeline: graphics pipeline not built: pipeline creation failed");
@@ -2594,7 +2608,7 @@ static Pipe *pipe_miss(const VkPipeState *s, const GKey *k, uint64_t h, int mode
         rt_log("vk_pipeline: graphics pipeline not built: %s", why);
     } else if (!j) {
         P.stats.graphics++;
-        if (mode != 2 && !s->gs) keys_note(s);   // the key records carry two stages: a geometry program is not recorded
+        if (mode != 2) keys_note(s);
     }
     Pipe *p = pipe_add(k, sizeof *k, h, pipe, l, l ? &B : NULL, VK_PIPELINE_BIND_POINT_GRAPHICS, gfx_shader_inputs(s->vs, NULL));
     if (p && s->gs) p->fast_tried = 1;   // no graphics pipeline library fast link for a program with a geometry stage
@@ -2853,8 +2867,8 @@ static uint32_t prewarm_keys(int boot) {
     }
     const KeyRec *r = (const KeyRec *)K.file;
     size_t n = K.file_n, m = 0;
-    uint8_t (*ids)[32] = malloc(2 * n * 32);
-    const GfxShader **sh = calloc(2 * n, sizeof *sh);
+    uint8_t (*ids)[32] = malloc(3 * n * 32);
+    const GfxShader **sh = calloc(3 * n, sizeof *sh);
     if (!ids || !sh) {
         free(ids), free(sh);
         return 0;
@@ -2862,6 +2876,7 @@ static uint32_t prewarm_keys(int boot) {
     for (size_t i = 0; i < n; i++) {
         memcpy(ids[m++], r[i].vs, 32);
         if (r[i].has_fs) memcpy(ids[m++], r[i].fs, 32);
+        if (r[i].has_gs) memcpy(ids[m++], r[i].gs, 32);
     }
     qsort(ids, m, 32, id_cmp);
     size_t u = 0;
@@ -2878,7 +2893,7 @@ static uint32_t prewarm_keys(int boot) {
         for (size_t i = 0; i < n; i++) {
             const uint8_t (*v)[32] = bsearch(r[i].vs, ids, u, 32, id_cmp);
             const uint8_t (*f)[32] = r[i].has_fs ? bsearch(r[i].fs, ids, u, 32, id_cmp) : NULL;
-            if (!v || !f || !sh[v - ids] || !sh[f - ids]) continue;
+            if (r[i].has_gs || !v || !f || !sh[v - ids] || !sh[f - ids]) continue;   // a geometry program: no union
             GfxShaderIo io[32];
             vs_outs(sh[v - ids], sh[f - ids], io);
             pair += (uint64_t)__builtin_popcount(gfx_shader_inputs(sh[f - ids], NULL)), pairs++;
@@ -2894,15 +2909,16 @@ static uint32_t prewarm_keys(int boot) {
     for (size_t i = 0; i < n; i++) {
         const uint8_t (*v)[32] = bsearch(r[i].vs, ids, u, 32, id_cmp);
         const uint8_t (*f)[32] = r[i].has_fs ? bsearch(r[i].fs, ids, u, 32, id_cmp) : NULL;
-        const GfxShader *vs = v ? sh[v - ids] : NULL, *fs = f ? sh[f - ids] : NULL;
-        if (!vs || (r[i].has_fs && !fs)) {
+        const uint8_t (*g)[32] = r[i].has_gs ? bsearch(r[i].gs, ids, u, 32, id_cmp) : NULL;
+        const GfxShader *vs = v ? sh[v - ids] : NULL, *fs = f ? sh[f - ids] : NULL, *gs = g ? sh[g - ids] : NULL;
+        if (!vs || (r[i].has_fs && !fs) || (r[i].has_gs && !gs)) {
             dropped++;
             continue;
         }
         VkPipeState s;
         memset(&s, 0, sizeof s);
         memcpy(&s, r[i].s, sizeof r[i].s);
-        s.vs = vs, s.fs = fs;
+        s.vs = vs, s.fs = fs, s.gs = gs;
         GKey k;
         gkey_fill(&s, &k);
         pr_hist[(k.clamp & 1) | (k.poly_mode & 3) << 1 | (k.minus_w & 1) << 3]++;

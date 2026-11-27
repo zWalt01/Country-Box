@@ -343,6 +343,8 @@ void gfx_exit_log(void) {
         void vk_texture_census_log(void);
         uint64_t gfx_shader_cache_hits(void), gfx_shader_failures(void), gfx_shader_requests(void);
         vk_texture_census_log();
+        void vk_exec_gs_census_log(void);
+        vk_exec_gs_census_log();
         rt_log("census: shaders translated this run %llu, failed %llu, cache hits %llu",
                (unsigned long long)gfx_shader_requests(), (unsigned long long)gfx_shader_failures(),
                (unsigned long long)gfx_shader_cache_hits());

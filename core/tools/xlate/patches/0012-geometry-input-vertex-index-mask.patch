@@ -1,0 +1,58 @@
+--- a/src/Ryujinx.Graphics.Shader/Instructions/InstEmitAttribute.cs	2026-11-26 11:35:09.914878271 +0000
++++ b/src/Ryujinx.Graphics.Shader/Instructions/InstEmitAttribute.cs	2026-11-26 11:35:09.946043410 +0000
+@@ -31,6 +31,28 @@
+ 
+             Operand primVertex = hasPrimitiveVertex ? context.Copy(GetSrcReg(context, op.SrcB)) : null;
+ 
++            // MP4 (2026-11-26): a geometry shader's input vertex register is not always a valid index. Tropical Freeze's
++            // point sprite expanders (7 of the 48 programs measured) set the register of a vertex their input primitive does
++            // not have to 0x80000000, and compute with what they read from it. gl_in[] cannot take such an index, so it is
++            // reduced to the bits that address a vertex of the input primitive (0 for points, 1 lines, 3 triangles and lines
++            // with adjacency, 7 triangles with adjacency) and the value read is 0 when the index is out of range, which is
++            // what the shaders' arithmetic needs (a zero vertex is the origin of view space). A valid index is unchanged.
++            Operand validVertex = null;
++
++            if (primVertex != null && context.TranslatorContext.Definitions.Stage == ShaderStage.Geometry)
++            {
++                int vertexCount = context.TranslatorContext.Definitions.InputTopology.InputVertexCount;
++                int vertexMask = (int)System.Numerics.BitOperations.RoundUpToPowerOf2((uint)vertexCount) - 1;
++
++                validVertex = context.ICompareLessUnsigned(primVertex, Const(vertexCount));
++                primVertex = context.BitwiseAnd(primVertex, Const(vertexMask));
++            }
++
++            Operand ZeroIfInvalid(Operand value)
++            {
++                return validVertex != null ? context.ConditionalSelect(validVertex, value, Const(0)) : value;
++            }
++
+             for (int index = 0; index < (int)op.AlSize + 1; index++)
+             {
+                 Register rd = new(op.Dest + index, RegisterType.Gpr);
+@@ -48,7 +70,7 @@
+ 
+                     StorageKind storageKind = op.O ? StorageKind.Output : StorageKind.Input;
+ 
+-                    context.Copy(Register(rd), context.Load(storageKind, IoVariable.UserDefined, primVertex, vecIndex, elemIndex));
++                    context.Copy(Register(rd), ZeroIfInvalid(context.Load(storageKind, IoVariable.UserDefined, primVertex, vecIndex, elemIndex)));
+                 }
+                 else if (op.SrcB == RegisterConsts.RegisterZeroIndex || op.P)
+                 {
+@@ -89,7 +111,7 @@
+                             value = context.ShiftRightS32(value, Const(1));
+                         }
+ 
+-                        context.Copy(Register(rd), value);
++                        context.Copy(Register(rd), ZeroIfInvalid(value));
+                     }
+                 }
+                 else
+@@ -97,7 +119,7 @@
+                     int offset = FixedFuncToUserAttribute(context.TranslatorContext, op.Imm11 + index * 4, op.O);
+                     bool isOutput = op.O && CanLoadOutput(offset);
+ 
+-                    context.Copy(Register(rd), AttributeMap.GenerateAttributeLoad(context, primVertex, offset, isOutput, false));
++                    context.Copy(Register(rd), ZeroIfInvalid(AttributeMap.GenerateAttributeLoad(context, primVertex, offset, isOutput, false)));
+                 }
+             }
+         }

@@ -605,6 +605,25 @@ static size_t add_variants(RecBuf *ans, Wanted *W, const uint8_t *b, size_t n, u
     return added;
 }
 
+// A version 3 pipeline keys file (424-byte records, before geometry pipelines were recorded) as version 4: every record
+// gains an all-zero geometry stage (vk_pipeline.c KeyRec keeps the version 3 record as its first bytes). Takes b (from
+// plat_file_read) and returns the converted buffer, or b itself when it is not version 3.
+static uint8_t *keys_v3_to_v4(uint8_t *b, uint64_t *n) {
+    uint32_t v[2];
+    if (!b || *n < 16 || memcmp(b, "TOTKPKEY", 8)) return b;
+    memcpy(v, b + 8, 8);
+    if (v[0] != 3 || v[1] != 424) return b;
+    size_t r = (size_t)(*n - 16) / 424;
+    uint8_t *o = calloc(1, 16 + r * 456);
+    if (!o) return b;
+    uint32_t nv[2] = {4, 456};
+    memcpy(o, b, 8), memcpy(o + 8, nv, 8);
+    for (size_t i = 0; i < r; i++) memcpy(o + 16 + i * 456, b + 16 + i * 424, 424);
+    *n = 16 + r * 456;
+    free(b);
+    return o;
+}
+
 // Merges pipeline-list.bin's records into pipeline-keys.bin (its own records first), as tools/prepare_shaders.py
 // merge_pipelines does. Returns the records in the result.
 static long merge_pipelines(void) {
@@ -613,6 +632,9 @@ static long merge_pipelines(void) {
     in_dir("pipeline-keys.bin", keys, sizeof keys);
     uint64_t ln = 0, kn = 0;
     uint8_t *l = plat_file_read(pl, &ln), *k = plat_file_read(keys, &kn);
+    uint64_t kn0 = kn;
+    l = keys_v3_to_v4(l, &ln), k = keys_v3_to_v4(k, &kn);
+    int k_up = kn != kn0;   // the install's own file was version 3: rewritten as version 4 whatever the list adds
     long out = -1;
     uint32_t lv[2] = {0, 0}, kv[2] = {0, 0};
     if (l && ln >= 16) memcpy(lv, l + 8, 8);
@@ -639,7 +661,7 @@ static long merge_pipelines(void) {
                 if (dset_add(&seen, d)) memcpy(o + 16 + n * rs, r, rs), n++, added++;
             }
             dset_free(&seen);
-            if (added || !k_ok) plat_file_write_atomic(keys, o, 16 + n * rs);
+            if (added || !k_ok || k_up) plat_file_write_atomic(keys, o, 16 + n * rs);
             rt_log("shader_prep: %zu listed pipelines: %zu added to %zu in %s", lr, added, kr, keys);
             out = (long)n;
             free(o);
