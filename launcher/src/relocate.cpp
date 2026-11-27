@@ -660,6 +660,47 @@ OldDataCopy plan_old_data_copy() {
     return c;
 }
 
+// A game's settings file (games/<game>/mp4.ini): on the start that adopts the old data, the old one replaces one the
+// launcher may already have written into {data} (it writes the profile's settings before the game starts)
+static bool is_game_settings(const fs::path &rel) {
+    auto p = rel.parent_path();
+    return rel.filename() == "mp4.ini" && !p.parent_path().empty() && p.parent_path() == "games";
+}
+
+struct CopyStep {
+    fs::path src, dst;   // dst missing, or a game's settings file to replace
+};
+
+// What to bring from src (a folder of the old data) into dst (the same folder in {data}): what dst does not have yet,
+// file by file inside folders it already has (the launcher can make {data}/games/<game>/mp4.ini before the first
+// start), plus the games' settings files (above). What an earlier start left half copied in dst goes first.
+static bool plan_merge(const fs::path &src, const fs::path &dst, const fs::path &rel, std::vector<CopyStep> &out,
+                       std::string &err) {
+    std::error_code ec;
+    std::vector<fs::path> stale;
+    for (auto it = fs::directory_iterator(dst, ec); !ec && it != fs::directory_iterator(); it.increment(ec))
+        if (is_copying(it->path())) stale.push_back(it->path());
+    if (ec) return err = dst.string() + ": " + ec.message(), false;
+    for (auto &p : stale)
+        if (fs::remove_all(p, ec), ec) return err = p.string() + ": a copy cut short earlier could not be removed: " + ec.message(), false;
+    std::vector<fs::path> entries;
+    for (auto it = fs::directory_iterator(src, ec); !ec && it != fs::directory_iterator(); it.increment(ec)) entries.push_back(it->path());
+    if (ec) return err = src.string() + ": " + ec.message(), false;
+    for (auto &s : entries) {
+        std::string name = s.filename().string();
+        if ((rel.empty() && kNotCopied.count(name)) || is_copying(s)) continue;
+        fs::path d = dst / name, r = rel / name;
+        std::error_code e;
+        auto ds = fs::symlink_status(d, e), ss = fs::symlink_status(s, e);
+        if (!fs::exists(ds)) out.push_back({s, d});
+        else if (fs::is_directory(ss) && fs::is_directory(ds)) {
+            if (!plan_merge(s, d, r, out, err)) return false;
+        } else if (is_game_settings(r) && fs::is_regular_file(ss) && fs::is_regular_file(ds))
+            out.push_back({s, d});
+    }
+    return true;
+}
+
 void copy_old_data(const OldDataCopy &plan, LibraryMove &m) {
     auto fail = [&](const std::string &h, const std::string &e) {
         m.ok = false, m.headline = h, m.explain = e;
@@ -670,31 +711,20 @@ void copy_old_data(const OldDataCopy &plan, LibraryMove &m) {
     m.from = plan.from, m.to = plan.to;
     fs::create_directories(to, ec);
     if (ec) return fail("The game's data folder can't be used.", m.to + ": " + ec.message());
-    // what an earlier start left half copied goes first (it is copied again below)
-    std::vector<fs::path> stale;
-    for (auto it = fs::directory_iterator(to, ec); !ec && it != fs::directory_iterator(); it.increment(ec))
-        if (is_copying(it->path())) stale.push_back(it->path());
-    for (auto &p : stale)
-        if (fs::remove_all(p, ec), ec) return fail("A copy cut short earlier could not be removed.", p.string() + ": " + ec.message());
     // what to copy: everything not copied yet (an item is renamed into place only once it is complete)
-    std::vector<fs::path> items;
-    for (auto it = fs::directory_iterator(from, ec); !ec && it != fs::directory_iterator(); it.increment(ec)) {
-        std::error_code e;
-        if (kNotCopied.count(it->path().filename().string()) || is_copying(it->path())) continue;
-        if (fs::exists(fs::symlink_status(to / it->path().filename(), e))) continue;
-        items.push_back(it->path());
-    }
-    if (ec) return fail("Your data can't be read.", m.from + ": " + ec.message());
+    std::vector<CopyStep> items;
+    std::string err;
+    if (!plan_merge(from, to, "", items, err)) return fail("Your data can't be copied.", err + ". It is still in " + m.from + ".");
     int64_t total = 0;
-    for (auto &p : items) total += tree_bytes(p);
+    for (auto &p : items) total += tree_bytes(p.src);
     m.total.store(total);
     auto sp = fs::space(to, ec);
     if (!ec && (int64_t)sp.available < total + (64 << 20))
         return fail("There is not enough free space to copy your data.",
                     "It needs " + human((double)total) + "; " + m.to + " has " + human((double)sp.available) + " free.");
-    std::string err;
-    for (auto &p : items) {
-        fs::path part = to / (p.filename().string() + kCopying), dst = to / p.filename();
+    for (auto &step : items) {
+        const fs::path &p = step.src, &dst = step.dst;
+        fs::path part = dst.parent_path() / (dst.filename().string() + kCopying);
         std::error_code e;
         if (!copy_tree(p, part, m.done, err) || !same_tree(p, part, err)) {
             fs::remove_all(part, e);

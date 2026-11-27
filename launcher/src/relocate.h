@@ -33,8 +33,11 @@
 // COPIES in what 1.0.7 to 1.0.9 kept next to the game's folder (<library>/Country-Box-data); nothing there is moved or
 // deleted. Each item goes to <name>.copying, is read back, and only then is renamed into place; a marker
 // (.country-box-data-copied) is written last and is the only sign it is done. A start cut short leaves .copying items
-// that the next start removes and copies again. Temporary files and caches are not copied. If the copy fails, that
-// run keeps the old folder, and the next start tries again.
+// that the next start removes and copies again. A folder {data} already has (the launcher writes
+// games/<game>/mp4.ini before a game starts) is gone into, and what it lacks is copied file by file; nothing there is
+// overwritten except each game's mp4.ini, which the old one replaces (also through .copying) until the marker is
+// written. Temporary files and caches are not copied. If the copy fails, that run keeps the old folder, and the next
+// start tries again.
 #pragma once
 #include <atomic>
 #include <cstdint>
