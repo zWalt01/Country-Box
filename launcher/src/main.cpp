@@ -34,6 +34,8 @@
 // update-wait (until the update check answered), update-ask (show the dialog), update-now, update-notnow,
 // go:PATH (the browser's path field), system-picker, library-browse, move-here, wait-move, choose:keep|here|folder|later, wheel:X:Y:NOTCHES, mouse:X:Y:0|1 (X, Y: fractions of the window).
 // CB_LAUNCHER_DEBUG_NAV=1 logs Dear ImGui's navigation and focus events. CB_LAUNCHER_NO_UPDATE=1 skips the check.
+// Started by RecompLauncher on Linux: RECOMPLAUNCHER_DATA is the data folder (relocate.h), and with RECOMPLAUNCHER=1
+// there is no update check and no self-update (the hub's and --update): RecompLauncher installs every release.
 #include <SDL3/SDL.h>
 
 #include <chrono>
@@ -461,7 +463,34 @@ int main(int argc, char **argv) {
     const Migration *hub_migration = nullptr;   // the hub asks
     Migration mig;
     bool fixed = !home.empty() || (getenv("CB_LAUNCHER_HOME") && *getenv("CB_LAUNCHER_HOME"));
-    if (!fixed) mig = plan_migration();
+    // RecompLauncher's {data} (relocate.h): the first start copies the old data folder in; until that has worked,
+    // the old folder stays this run's, as before
+    bool kept_old = false;
+    if (!fixed) {
+        OldDataCopy od = plan_old_data_copy();
+        if (od.needed && od.busy) {
+            set_base_home(od.from), kept_old = true;
+            notice = "Your data stays in " + od.from + " for now: a game is running from there. It is copied into " +
+                     od.to + " the next time you start.";
+        } else if (od.needed) {
+            LibraryMove m;
+            std::thread t([&] { copy_old_data(od, m); });
+            while (!m.finished.load()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(300));
+                if (m.total.load() > 0)
+                    fprintf(stderr, "progress %.3f copying your Country-Box data into %s\n", (double)m.done.load() / (double)m.total.load(), od.to.c_str());
+            }
+            t.join();
+            if (m.ok) fprintf(stderr, "launcher: your data was copied from %s to %s (the old folder was left as it was)\n", od.from.c_str(), od.to.c_str());
+            else {
+                set_base_home(od.from), kept_old = true;
+                notice = "Your data stays in " + od.from + " for now: copying it into " + od.to + " failed. " + m.headline + " " +
+                         m.explain + " The next start tries again.";
+            }
+        }
+        if (kept_old) fprintf(stderr, "launcher: %s\n", notice.c_str());
+    }
+    if (!fixed && !kept_old) mig = plan_migration();
     if (!library_choice.empty() && !mig.ask())
         fprintf(stderr, "launcher: --library-choice: nothing to choose (%s)\n",
                 mig.stay ? "already kept where it is" : mig.busy ? "a game is running from the old place" : "no old library to move");
@@ -497,7 +526,7 @@ int main(int argc, char **argv) {
                 notice = "Your library stays in " + mig.from + ": moving it failed. " + m.headline + " " + m.explain;
         }
         if (!notice.empty()) fprintf(stderr, "launcher: %s\n", notice.c_str());
-    } else if (!fixed && !base_note().empty()) {
+    } else if (!fixed && !kept_old && !base_note().empty()) {
         notice = base_note();
         fprintf(stderr, "launcher: %s\n", notice.c_str());
     }
@@ -521,6 +550,10 @@ int main(int argc, char **argv) {
         args = {g->id};
     }
     if (action.empty()) return run_hub(lib, w, h, fullscreen, shot_dir, auto_steps, hub_migration, notice);
+    if (action == "--update" && under_recomplauncher()) {   // RecompLauncher installs every release itself
+        fprintf(stderr, "launcher: started by RecompLauncher, which installs Country-Box's updates; nothing was changed\n");
+        return 1;
+    }
     if (action == "--check-update" || action == "--update") {
         std::string err;
         UpdateInfo i = update_check(lib.home(), &err);
@@ -547,6 +580,10 @@ int main(int argc, char **argv) {
         if (args.size() != 1) return usage(), 2;
         if (launcher_home_fixed()) {
             fprintf(stderr, "launcher: the library folder is set by --home or CB_LAUNCHER_HOME for this run; it can't be moved\n");
+            return 1;
+        }
+        if (!recomplauncher_data_dir().empty()) {
+            fprintf(stderr, "launcher: started by RecompLauncher, which keeps the library in its data folder (its own Move moves the whole game); nothing was moved\n");
             return 1;
         }
         LibraryMove m;

@@ -39,7 +39,29 @@ std::string legacy_launcher_home() {
     return std::string(h ? h : ".") + "/.local/share/country-box";
 }
 
-std::string portable_data_dir() {
+std::string recomplauncher_data_dir() {
+#ifdef _WIN32
+    return "";
+#else
+    const char *d = getenv("RECOMPLAUNCHER_DATA");
+    if (!d || d[0] != '/') return "";   // only an absolute path: never a folder relative to wherever this started
+    std::string s = d;
+    while (s.size() > 1 && s.back() == '/') s.pop_back();
+    return fs::path(s).lexically_normal().string();
+#endif
+}
+
+bool under_recomplauncher() {
+#ifdef _WIN32
+    return false;
+#else
+    const char *r = getenv("RECOMPLAUNCHER");
+    return r && strcmp(r, "1") == 0;
+#endif
+}
+
+// The portable rule of 1.0.7: Country-Box-data next to the package AppRun names; "" for a bare binary.
+static std::string beside_package_dir() {
     // AppRun: the .AppImage file ($APPIMAGE), or the extracted folder (tarball, --appimage-extract) it runs from
     const char *e = getenv("CB_PORTABLE_EXE");
     if (!e || !*e) return "";
@@ -50,6 +72,11 @@ std::string portable_data_dir() {
     std::error_code ec;
     fs::path abs = fs::absolute(parent, ec);
     return ((ec ? parent : abs).lexically_normal() / kDataFolder).string();
+}
+
+std::string portable_data_dir() {
+    if (std::string d = recomplauncher_data_dir(); !d.empty()) return d;   // RecompLauncher's {data} wins (relocate.h)
+    return beside_package_dir();
 }
 
 static bool runs_programs(const fs::path &dir, std::string &why);
@@ -602,4 +629,172 @@ void migrate_library(const Migration &plan, const std::string &picked, LibraryMo
     }
     if (tools.ok) tidy_old_place(from);
     done();
+}
+
+// ---- RecompLauncher's {data}: the first start copies the old data folder in (relocate.h)
+
+static const char *kCopiedMarker = ".country-box-data-copied";
+static const std::string kCopying = ".copying";
+// Left out: temporary files, caches and import staging (made again when needed), the build kit's link (it only
+// exists while a game is being prepared) and the hub's own installs from its updates (RecompLauncher updates it).
+static const std::set<std::string> kNotCopied = {"tmp", "cache", "import", "toolkit", "app"};
+
+static bool is_copying(const fs::path &p) {
+    std::string n = p.filename().string();
+    return n.size() > kCopying.size() && n.compare(n.size() - kCopying.size(), kCopying.size(), kCopying) == 0;
+}
+
+OldDataCopy plan_old_data_copy() {
+    OldDataCopy c;
+    std::string to = recomplauncher_data_dir(), from = beside_package_dir();
+    if (to.empty() || from.empty()) return c;
+    std::error_code ec;
+    if (fs::exists(fs::path(to) / kCopiedMarker, ec)) return c;   // copied once already: never again
+    if (!fs::is_directory(from, ec) || fs::weakly_canonical(from, ec) == fs::weakly_canonical(to, ec)) return c;
+    bool any = false;
+    for (auto it = fs::directory_iterator(from, ec); !ec && it != fs::directory_iterator(); it.increment(ec))
+        if (!kNotCopied.count(it->path().filename().string()) && !is_copying(it->path())) any = true;
+    if (!any) return c;   // nothing but temporary files: nothing to bring over
+    c.from = from, c.to = to, c.needed = true;
+    c.busy = something_runs_from(from);
+    return c;
+}
+
+// A game's settings file (games/<game>/mp4.ini): on the start that adopts the old data, the old one replaces one the
+// launcher may already have written into {data} (it writes the profile's settings before the game starts)
+static bool is_game_settings(const fs::path &rel) {
+    auto p = rel.parent_path();
+    return rel.filename() == "mp4.ini" && !p.parent_path().empty() && p.parent_path() == "games";
+}
+
+struct CopyStep {
+    fs::path src, dst;   // dst missing, or a game's settings file to replace
+};
+
+// What to bring from src (a folder of the old data) into dst (the same folder in {data}): what dst does not have yet,
+// file by file inside folders it already has (the launcher can make {data}/games/<game>/mp4.ini before the first
+// start), plus the games' settings files (above). What an earlier start left half copied in dst goes first.
+static bool plan_merge(const fs::path &src, const fs::path &dst, const fs::path &rel, std::vector<CopyStep> &out,
+                       std::string &err) {
+    std::error_code ec;
+    std::vector<fs::path> stale;
+    for (auto it = fs::directory_iterator(dst, ec); !ec && it != fs::directory_iterator(); it.increment(ec))
+        if (is_copying(it->path())) stale.push_back(it->path());
+    if (ec) return err = dst.string() + ": " + ec.message(), false;
+    for (auto &p : stale)
+        if (fs::remove_all(p, ec), ec) return err = p.string() + ": a copy cut short earlier could not be removed: " + ec.message(), false;
+    std::vector<fs::path> entries;
+    for (auto it = fs::directory_iterator(src, ec); !ec && it != fs::directory_iterator(); it.increment(ec)) entries.push_back(it->path());
+    if (ec) return err = src.string() + ": " + ec.message(), false;
+    for (auto &s : entries) {
+        std::string name = s.filename().string();
+        if ((rel.empty() && kNotCopied.count(name)) || is_copying(s)) continue;
+        fs::path d = dst / name, r = rel / name;
+        std::error_code e;
+        auto ds = fs::symlink_status(d, e), ss = fs::symlink_status(s, e);
+        if (!fs::exists(ds)) out.push_back({s, d});
+        else if (fs::is_directory(ss) && fs::is_directory(ds)) {
+            if (!plan_merge(s, d, r, out, err)) return false;
+        } else if (is_game_settings(r) && fs::is_regular_file(ss) && fs::is_regular_file(ds))
+            out.push_back({s, d});
+    }
+    return true;
+}
+
+// Every item a start renames into {data} before the marker is written goes in this journal first (its path inside
+// {data}, one per line). A start that fails or is cut short leaves items older than the saves the old folder gets
+// next (that start plays from it), so a failure, and the next start, take back exactly those items and copy them
+// again; nothing else in {data} is touched, and the originals never. The journal goes once the marker is there.
+static const char *kJournal = ".country-box-copying-items";
+
+static bool journal_add(const fs::path &to, const fs::path &rel, std::string &err) {
+    std::string line = rel.generic_string(), file = (to / kJournal).string();
+    if (line.find('\n') != std::string::npos) return err = rel.string() + ": a name with a line break can't be copied", false;
+    FILE *f = fopen(file.c_str(), "a");
+    if (!f) return err = "cannot write " + file + ": " + strerror(errno), false;
+    bool ok = fputs((line + "\n").c_str(), f) >= 0 && fflush(f) == 0;
+#ifndef _WIN32
+    ok = ok && fsync(fileno(f)) == 0;
+#endif
+    if (fclose(f) != 0) ok = false;
+    if (!ok) err = "cannot write " + file;
+    return ok;
+}
+
+static bool journal_undo(const fs::path &to, std::string &err) {
+    fs::path file = to / kJournal;
+    std::error_code ec;
+    if (!fs::exists(fs::symlink_status(file, ec))) return true;
+    std::ifstream f(file);
+    if (!f) return err = "cannot read " + file.string(), false;
+    for (std::string line; std::getline(f, line);) {
+        fs::path rel = fs::path(line).lexically_normal();
+        bool plain = !line.empty() && rel.is_relative() && !rel.has_root_name();
+        for (const fs::path &c : rel) plain = plain && c != ".." && c != ".";
+        if (!plain) continue;   // never anything outside {data}
+        if (fs::remove_all(to / rel, ec), ec)
+            return err = (to / rel).string() + ": a copy cut short earlier could not be removed: " + ec.message(), false;
+    }
+    f.close();
+    if (fs::remove(file, ec), ec) return err = "cannot remove " + file.string() + ": " + ec.message(), false;
+    return true;
+}
+
+void copy_old_data(const OldDataCopy &plan, LibraryMove &m) {
+    auto fail = [&](const std::string &h, const std::string &e) {
+        m.ok = false, m.headline = h, m.explain = e;
+        m.finished.store(true);
+    };
+    std::error_code ec;
+    fs::path from = plan.from, to = plan.to;
+    m.from = plan.from, m.to = plan.to;
+    fs::create_directories(to, ec);
+    if (ec) return fail("The game's data folder can't be used.", m.to + ": " + ec.message());
+    std::string err;
+    // what an earlier start put in place without finishing goes first: it is copied again, from the old folder as it
+    // is now (journal above)
+    if (!journal_undo(to, err)) return fail("Your data can't be copied.", err + ". It is still in " + m.from + ".");
+    // a failure from here on takes back what this start put in place
+    auto undo_fail = [&](const std::string &h, const std::string &e) {
+        std::string why;
+        if (!journal_undo(to, why)) fprintf(stderr, "launcher: %s (the next start tries again)\n", why.c_str());
+        fail(h, e);
+    };
+    // what to copy: everything not copied yet (an item is renamed into place only once it is complete)
+    std::vector<CopyStep> items;
+    if (!plan_merge(from, to, "", items, err)) return fail("Your data can't be copied.", err + ". It is still in " + m.from + ".");
+    int64_t total = 0;
+    for (auto &p : items) total += tree_bytes(p.src);
+    m.total.store(total);
+    auto sp = fs::space(to, ec);
+    if (!ec && (int64_t)sp.available < total + (64 << 20))
+        return fail("There is not enough free space to copy your data.",
+                    "It needs " + human((double)total) + "; " + m.to + " has " + human((double)sp.available) + " free.");
+    for (auto &step : items) {
+        const fs::path &p = step.src, &dst = step.dst;
+        fs::path part = dst.parent_path() / (dst.filename().string() + kCopying);
+        std::error_code e;
+        if (!copy_tree(p, part, m.done, err) || !same_tree(p, part, err) || !journal_add(to, dst.lexically_relative(to), err)) {
+            fs::remove_all(part, e);
+            return undo_fail("Your data could not be copied.", err + ". It is still in " + m.from + ".");
+        }
+        if (fs::rename(part, dst, e), e) {
+            std::string why = dst.string() + ": " + e.message();
+            fs::remove_all(part, e);
+            return undo_fail("Your data could not be copied.", why + ". It is still in " + m.from + ".");
+        }
+    }
+    rewrite_builds(to / "library.ini", m.from, m.to);   // builds recorded inside the old folder: their copies here
+    // the marker last: the one sign that everything is here
+    std::string file = (to / kCopiedMarker).string(), tmp = file + ".tmp";
+    {
+        std::ofstream f(tmp, std::ios::trunc);
+        f << "copied from " << m.from << " on " << now_text("%Y-%m-%d %H:%M")
+          << "; that folder was left as it was, and is not copied again\n";
+        if (!f) return undo_fail("The copy could not be recorded.", "cannot write " + tmp);
+    }
+    if (rename(tmp.c_str(), file.c_str())) return undo_fail("The copy could not be recorded.", file + ": " + strerror(errno));
+    fs::remove(to / kJournal, ec);   // done: nothing to take back (a journal left over is never read again)
+    m.ok = true;
+    m.finished.store(true);
 }
