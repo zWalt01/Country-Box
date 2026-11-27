@@ -779,6 +779,7 @@ void Ui::browse_go(const std::string &text) {
 // ---- moving the library (relocate.h)
 
 void Ui::start_library_browse() {
+    if (!recomplauncher_data_dir().empty()) return;   // RecompLauncher keeps the library in its data folder
     browse_library_ = true;
     browse_import_ = false;
     open_browse("", "");
@@ -1784,7 +1785,7 @@ void Ui::draw_about(ImVec2 mn, ImVec2 mx) {
         if (button("##upd", "Check for updates", V(x, y), V(320 * s_, 54 * s_), kButton, true, fonts.body)) start_update_check();
     }
     {   // next to the update button: moving the library
-        bool can = !launcher_home_fixed() && !lib_.any_running() && !prep_ && !update_;
+        bool can = !launcher_home_fixed() && recomplauncher_data_dir().empty() && !lib_.any_running() && !prep_ && !update_;
         if (button("##movelib", "Move library…", V(x + 340 * s_, y), V(260 * s_, 54 * s_), kButton, can, fonts.body)) start_library_browse();
     }
     y += 54 * s_ + 12 * s_;
@@ -1793,7 +1794,9 @@ void Ui::draw_about(ImVec2 mn, ImVec2 mx) {
     if (y > pmn.y + 40 * s_ + bh * 1.15f) x = pmn.x + 40 * s_, wrap = pmx.x - 30 * s_ - x;
     {   // the library's folder (relocate.h)
         std::string why = launcher_home_fixed() ? "  (set by --data-dir, --home or CB_LAUNCHER_HOME for this run)"
-                          : lib_.any_running()  ? "  (close the game to move it)" : "";
+                          : !recomplauncher_data_dir().empty()
+                              ? "  (RecompLauncher keeps the library in its data folder; its own Move moves the whole game)"
+                          : lib_.any_running() ? "  (close the game to move it)" : "";
         para(fonts.small, art::kMuted, "Library (builds, saves, logs): " + lib_.home() + why);
         if (!notice_.empty()) para(fonts.small, art::kBad, notice_);
     }

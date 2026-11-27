@@ -582,6 +582,10 @@ int main(int argc, char **argv) {
             fprintf(stderr, "launcher: the library folder is set by --home or CB_LAUNCHER_HOME for this run; it can't be moved\n");
             return 1;
         }
+        if (!recomplauncher_data_dir().empty()) {
+            fprintf(stderr, "launcher: started by RecompLauncher, which keeps the library in its data folder (its own Move moves the whole game); nothing was moved\n");
+            return 1;
+        }
         LibraryMove m;
         std::thread t([&] { move_library(lib.home(), args[0], m); });
         while (!m.finished.load()) {

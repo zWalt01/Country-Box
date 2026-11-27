@@ -37,7 +37,7 @@
 // games/<game>/mp4.ini before a game starts) is gone into, and what it lacks is copied file by file; nothing there is
 // overwritten except each game's mp4.ini, which the old one replaces (also through .copying) until the marker is
 // written. Temporary files and caches are not copied. If the copy fails, that run keeps the old folder, and the next
-// start tries again.
+// start tries again. With RECOMPLAUNCHER_DATA the hub can't move the library: the launcher keeps it in {data}.
 #pragma once
 #include <atomic>
 #include <cstdint>
