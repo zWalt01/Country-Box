@@ -113,8 +113,8 @@ private:
                 bool focus_here = false);
     void list_dir(const std::string &dir);
     void load_settings();
-    void step_setting(const Json &row, int dir);
-    void set_setting(const std::string &key, const std::string &value);
+    bool step_setting(const Json &row, int dir);   // true when the value actually changed
+    bool set_setting(const std::string &key, const std::string &value);
     void toast(const std::string &text, ImU32 col);
     void finish_flow();
     bool focus_take();   // true once per focus request: the item drawn next gets the focus
@@ -163,6 +163,10 @@ private:
     std::string settings_err_;
     int group_ = 0;
     std::string focused_key_;
+    // the arrow last pressed on a setting: orange and 10% bigger, then back (see draw_settings)
+    std::string arrow_key_;
+    int arrow_dir_ = 0;
+    float arrow_at_ = -1000;
     // update
     std::unique_ptr<UpdateChecker> checker_;
     std::unique_ptr<UpdateJob> update_;

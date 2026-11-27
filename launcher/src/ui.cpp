@@ -27,6 +27,11 @@ static const ImU32 kPanel = IM_COL32(10, 30, 19, 225);
 static const ImU32 kPanelEdge = IM_COL32(120, 84, 40, 255);
 static const ImU32 kButton = IM_COL32(46, 112, 66, 255);
 static const ImU32 kButtonDim = IM_COL32(40, 60, 46, 255);
+static const ImU32 kArrowOrange = IM_COL32(255, 106, 20, 255);
+static const ImU32 kArrowStopped = IM_COL32(110, 110, 102, 255);   // no further step this way
+// press: 76ms up to orange at 110%, 100ms hold, 114ms back
+static constexpr float kArrowIn = 0.076f, kArrowHold = 0.100f, kArrowOut = 0.114f;
+static constexpr float kArrowPulse = kArrowIn + kArrowHold + kArrowOut;
 
 static ImVec2 V(float x, float y) { return ImVec2(x, y); }
 
@@ -99,7 +104,8 @@ bool Ui::focus_take() {
 
 bool Ui::busy() const {
     return job_ != nullptr || prep_ != nullptr || import_thread_.joinable() || update_ != nullptr || checker_ != nullptr ||
-           lib_.any_running() || t_ < toast_until_ || (move_ && !move_->finished.load());
+           lib_.any_running() || t_ < toast_until_ || (move_ && !move_->finished.load()) ||
+           (arrow_dir_ != 0 && t_ < arrow_at_ + kArrowPulse);
 }
 
 Ui::~Ui() {
@@ -1530,35 +1536,35 @@ void Ui::load_settings() {
     if (group_ >= (int)dump_["groups"].size()) group_ = 0;
 }
 
-void Ui::set_setting(const std::string &key, const std::string &value) {
+bool Ui::set_setting(const std::string &key, const std::string &value) {
     Game *g = lib_.find(settings_game_);
-    if (!g) return;
+    if (!g) return false;
     Json ans;
     std::string err;
     if (!lib_.settings_set(*g, {key + "=" + value}, ans, &err)) {
         toast(err, art::kBad);
-        return;
+        return false;
     }
     if (!ans["ok"].truthy()) {
         toast(ans["errors"][(size_t)0].s("The game refused that value."), art::kBad);
-        return;
+        return false;
     }
     if (ans["restart"].truthy()) toast("Saved. It applies the next time the game starts.", art::kInfo);
     std::string keep;
     lib_.settings_dump(*g, dump_, &keep);
+    return true;
 }
 
-void Ui::step_setting(const Json &row, int dir) {
-    if (!row["unavailable"].is_null() || row["set_by_env"].truthy()) return;
+bool Ui::step_setting(const Json &row, int dir) {
+    if (!row["unavailable"].is_null() || row["set_by_env"].truthy()) return false;
     std::string key = row["key"].s();
     if (row["type"].s() == "range") {
         double v = atof(row["value"].s().c_str()), st = row["step"].n(1), lo = row["min"].n(), hi = row["max"].n();
         double nv = std::clamp(std::round((v + dir * st) / st) * st, lo, hi);
-        if (nv == v) return;
+        if (nv == v) return false;
         char b[32];
         snprintf(b, sizeof b, "%g", nv);
-        set_setting(key, b);
-        return;
+        return set_setting(key, b);
     }
     const Json &opts = row["options"];
     int n = (int)opts.size(), cur = 0;
@@ -1567,10 +1573,11 @@ void Ui::step_setting(const Json &row, int dir) {
     for (int k = 1; k < n; k++) {
         int i = ((cur + dir * k) % n + n) % n;
         if (opts[i]["unavailable"].is_null()) {
-            set_setting(key, opts[i]["value"].s());
-            return;
+            if (opts[i]["value"].s() == row["value"].s()) return false;
+            return set_setting(key, opts[i]["value"].s());
         }
     }
+    return false;
 }
 
 void Ui::draw_settings(ImVec2 mn, ImVec2 mx) {
@@ -1673,8 +1680,41 @@ void Ui::draw_settings(ImVec2 mn, ImVec2 mx) {
             dl->AddText(fonts.body, fonts.body->FontSize, V((v0.x + v1.x - ts.x) * 0.5f, vcy - ts.y * 0.5f), tc, shown.c_str());
         }
         if (!locked) {
-            art::triangle(dl, V(v0.x + 18 * s_, vcy), 9 * s_, -1, (foc || hov) ? art::kBanana : alpha(art::kCream, 0.6f));
-            art::triangle(dl, V(v1.x - 18 * s_, vcy), 9 * s_, 1, (foc || hov) ? art::kBanana : alpha(art::kCream, 0.6f));
+            auto can_step = [&](int dir) {
+                if (range) {
+                    double v = atof(row["value"].s().c_str()), st = row["step"].n(1), lo = row["min"].n(), hi = row["max"].n();
+                    double nv = std::clamp(std::round((v + dir * st) / st) * st, lo, hi);
+                    return nv != v;
+                }
+                const Json &opts = row["options"];
+                int n = (int)opts.size(), cur = 0;
+                for (int i = 0; i < n; i++)
+                    if (opts[i]["value"].s() == row["value"].s()) cur = i;
+                for (int k = 1; k < n; k++) {
+                    int i = ((cur + dir * k) % n + n) % n;
+                    if (opts[i]["unavailable"].is_null()) return opts[i]["value"].s() != row["value"].s();
+                }
+                return false;
+            };
+            auto arrow = [&](int side, float x) {
+                bool open = can_step(side);
+                float hot = 0;
+                // Do not gate hot on `open`: a successful press may land on an endpoint.
+                if (arrow_dir_ == side && arrow_key_ == row["key"].s()) {
+                    float age = t_ - arrow_at_;
+                    if (age >= 0.f && age < kArrowPulse) {
+                        float e = age < kArrowIn ? age / kArrowIn
+                                : age < kArrowIn + kArrowHold ? 1.f
+                                : (kArrowPulse - age) / kArrowOut;
+                        hot = e * e * (3.f - 2.f * e);
+                    }
+                }
+                ImU32 rest = !open ? kArrowStopped : (foc || hov) ? art::kBanana : alpha(art::kCream, 0.6f);
+                art::triangle(dl, V(x, vcy), 9 * s_ * (1.f + 0.1f * hot), side,
+                              hot > 0 ? mix(rest, kArrowOrange, hot) : rest);
+            };
+            arrow(-1, v0.x + 18 * s_);
+            arrow(1, v1.x - 18 * s_);
         }
         // input: left/right on the focused row, clicks on the arrows (or the bar), A cycles a choice
         int dir = 0;
@@ -1700,7 +1740,11 @@ void Ui::draw_settings(ImVec2 mn, ImVec2 mx) {
         }
         if (dir) {
             Json copy = row;   // the dump is replaced by the change
-            step_setting(copy, dir > 0 ? 1 : -1);
+            if (step_setting(copy, dir > 0 ? 1 : -1)) {
+                arrow_key_ = copy["key"].s();
+                arrow_dir_ = dir > 0 ? 1 : -1;
+                arrow_at_ = t_;
+            }
             ImGui::EndChild();
             return;
         }

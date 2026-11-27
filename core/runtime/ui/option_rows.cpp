@@ -28,6 +28,10 @@ void rt_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static const ImU32 kGold = IM_COL32(236, 194, 84, 255);
 static const ImU32 kDim = IM_COL32(150, 150, 140, 255);
 static const ImU32 kGrey = IM_COL32(110, 110, 102, 255);
+static const ImU32 kArrowOrange = IM_COL32(255, 106, 20, 255);
+// the same pulse as the launcher: 76ms up to orange at 110%, 100ms hold, 114ms back
+static constexpr float kArrowIn = 0.076f, kArrowHold = 0.100f, kArrowOut = 0.114f;
+static constexpr float kArrowPulse = kArrowIn + kArrowHold + kArrowOut;
 
 static float g_scale = 1;
 static bool g_focus_req, g_take_first;   // opt_focus_first: requested / this page's first row takes it
@@ -38,6 +42,9 @@ static bool g_disable_next;              // opt_disable_next: the next row is gr
 static UiTextId g_disable_note;
 static char g_extra[512];                // opt_desc_extra_next: appended to the next row's description
 static char g_row_extra[512];            // the row being drawn's
+static char g_pulse_key[64];             // the row whose arrow is pulsing
+static int g_pulse_dir;                  // -1 left, +1 right
+static double g_pulse_at = -1000;
 
 // The description pane: this frame's hovered and selected rows, the page's first row, and the last one shown.
 struct Desc { char text[512]; };
@@ -58,6 +65,35 @@ static void desc_set(Desc &d, UiTextId desc, const char *key, const CfgMeta *m, 
 }
 
 void opt_desc_extra_next(const char *text) { snprintf(g_extra, sizeof g_extra, "%s", text ? text : ""); }
+
+static ImU32 mix_col(ImU32 a, ImU32 b, float t) {
+    ImVec4 x = ImGui::ColorConvertU32ToFloat4(a), y = ImGui::ColorConvertU32ToFloat4(b);
+    return ImGui::ColorConvertFloat4ToU32(ImVec4(x.x + (y.x - x.x) * t, x.y + (y.y - x.y) * t, x.z + (y.z - x.z) * t,
+                                                 x.w + (y.w - x.w) * t));
+}
+
+// 0 at rest, 1 while the arrow of this row and side is fully orange and 10% bigger.
+static float arrow_amount(const char *key, int side) {
+    if (g_pulse_dir != side || strcmp(key, g_pulse_key) != 0) return 0;
+    float age = (float)(ImGui::GetTime() - g_pulse_at);
+    if (age < 0 || age >= kArrowPulse) return 0;
+    float e = age < kArrowIn ? age / kArrowIn : age < kArrowIn + kArrowHold ? 1.f : (kArrowPulse - age) / kArrowOut;
+    return e * e * (3.f - 2.f * e);
+}
+
+static void arrow_tri(ImDrawList *dl, ImVec2 a, ImVec2 b, ImVec2 c, float hot, ImU32 rest) {
+    float k = 1.f + 0.1f * hot;
+    ImVec2 o((a.x + b.x + c.x) / 3.f, (a.y + b.y + c.y) / 3.f);
+    auto s = [&](ImVec2 p) { return ImVec2(o.x + (p.x - o.x) * k, o.y + (p.y - o.y) * k); };
+    dl->AddTriangleFilled(s(a), s(b), s(c), hot > 0 ? mix_col(rest, kArrowOrange, hot) : rest);
+}
+
+// step -1 pulses the left arrow, anything else the right one (A and a click cycle forward).
+static void pulse_arrow(const char *key, int step) {
+    snprintf(g_pulse_key, sizeof g_pulse_key, "%s", key);
+    g_pulse_dir = step < 0 ? -1 : 1;
+    g_pulse_at = ImGui::GetTime();
+}
 
 void opt_focus_first(void) { g_focus_req = true; }
 
@@ -112,6 +148,8 @@ struct RowView {
     const char *value;   // right side; "" for none
     bool is_default;     // the value is the setting's default: the "default" mark, the value not highlighted
     bool arrows;         // a stepper: < value >, the arrows click too
+    bool open_left;      // false: that way is the end, the arrow is grey
+    bool open_right;
     const char *note;    // under the value instead of the "default" mark; NULL for none
 };
 
@@ -173,9 +211,14 @@ static int row(const char *key, UiTextId label, UiTextId desc, const RowView &v)
     if (v.arrows && v.value[0]) {   // < value >, drawn (the font has no arrow glyphs); a click on one steps
         float aw = fs * 0.42f, gap = fs * 0.55f, cy = ty + fs * 0.52f;
         float rx = right - aw, lx = rx - gap - ImGui::CalcTextSize(v.value).x - gap - aw;
-        ImU32 ac = off ? kGrey : hov || foc ? kGold : IM_COL32(170, 170, 160, 255);
-        dl->AddTriangleFilled(ImVec2(lx, cy), ImVec2(lx + aw, cy - aw * 0.75f), ImVec2(lx + aw, cy + aw * 0.75f), ac);
-        dl->AddTriangleFilled(ImVec2(rx + aw, cy), ImVec2(rx, cy - aw * 0.75f), ImVec2(rx, cy + aw * 0.75f), ac);
+        auto side_col = [&](bool open) {
+            if (off || !open) return kGrey;
+            return hov || foc ? kGold : IM_COL32(170, 170, 160, 255);
+        };
+        arrow_tri(dl, ImVec2(lx, cy), ImVec2(lx + aw, cy - aw * 0.75f), ImVec2(lx + aw, cy + aw * 0.75f),
+                  off ? 0.f : arrow_amount(key, -1), side_col(v.open_left));
+        arrow_tri(dl, ImVec2(rx + aw, cy), ImVec2(rx, cy - aw * 0.75f), ImVec2(rx, cy + aw * 0.75f),
+                  off ? 0.f : arrow_amount(key, 1), side_col(v.open_right));
         if (clicked && !off) {
             float mx = ImGui::GetIO().MousePos.x;
             if (mx >= lx - gap && mx <= lx + aw + gap) step = -1;
@@ -240,14 +283,14 @@ bool opt_toggle(const char *key, UiTextId label, UiTextId desc, bool inverted) {
     const CfgMeta *m = cfg_meta(key);
     bool set = cfg_bool(key) != 0, def = m && strcmp(cfg_default(key), "0") != 0;
     bool on = set != inverted;   // what the row shows
-    RowView v = {menu_text(on ? UI_MENU_ON : UI_MENU_OFF), set == def, false, NULL};
+    RowView v = {menu_text(on ? UI_MENU_ON : UI_MENU_OFF), set == def, false, false, false, NULL};
     if (!row(key, label, desc, v)) return false;   // any step flips it
     apply(key, set ? "0" : "1");
     return true;
 }
 
 bool opt_button(const char *id, UiTextId label, UiTextId desc, const char *value) {
-    RowView v = {value ? value : "", false, false, NULL};
+    RowView v = {value ? value : "", false, false, false, false, NULL};
     return row(id, label, desc, v) == 2;   // A or a click; left and right do nothing
 }
 
@@ -273,7 +316,8 @@ bool opt_choice_list(const char *key, UiTextId label, const char *const *values,
     int def = -1;
     for (int i = 0; m && i < n; i++)
         if (!strcmp(values[i], cfg_default(key))) def = i;
-    RowView v = {cur >= 0 ? names[cur] : now, cur == def, true, note};
+    RowView v = {cur >= 0 ? names[cur] : now, cur == def, true, n > 0 && (cur < 0 || cur > 0),
+                  n > 0 && (cur < 0 || cur < n - 1), note};
     int step = row(key, label, desc, v);
     if (!step || n <= 0) return false;
     int nv;
@@ -282,6 +326,7 @@ bool opt_choice_list(const char *key, UiTextId label, const char *const *values,
     else nv = cur + step < 0 ? 0 : cur + step >= n ? n - 1 : cur + step;   // left / right stop at the ends
     if (nv == cur) return false;
     apply(key, values[nv]);
+    pulse_arrow(key, step);
     return true;
 }
 
@@ -309,7 +354,13 @@ bool opt_slider(const char *key, UiTextId label, float lo, float hi, UiTextId de
     double v = cfg_double(key), def = m ? strtod(cfg_default(key), NULL) : lo;
     char shown[48];
     snprintf(shown, sizeof shown, fmt, v);
-    RowView rv = {shown, fabs(v - def) < step * 0.01, true, NULL};
+    auto moves = [&](int dir) {
+        double n = round(v / step) * step + dir * step;
+        if (n < lo) n = lo;
+        if (n > hi) n = hi;
+        return fabs(n - v) >= step * 0.01;
+    };
+    RowView rv = {shown, fabs(v - def) < step * 0.01, true, moves(-1), moves(1), NULL};
     int s = row(key, label, desc, rv);
     if (!s) return false;
     int steps = g_held && (hi - lo) > 40 * step ? 10 : 1;   // held: ten steps at a time over a long range
@@ -321,6 +372,7 @@ bool opt_slider(const char *key, UiTextId label, float lo, float hi, UiTextId de
     if (step >= 1) snprintf(out, sizeof out, "%d", (int)lround(n));
     else snprintf(out, sizeof out, "%g", round(n / step) * step);
     apply(key, out);
+    pulse_arrow(key, s);
     return true;
 }
 
