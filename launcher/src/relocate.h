@@ -26,6 +26,15 @@
 // record of that place go to the data folder). Nothing moves without that answer; starting a game straight away
 // (Steam shortcut) just uses the old place. A library the player had already moved elsewhere stays where it is:
 // only its record and the tools come over, without asking. If the move fails, Country-Box keeps the old place.
+//
+// RecompLauncher (Linux only): it unpacks the AppImage into the game's folder, runs its AppRun and passes
+// RECOMPLAUNCHER_DATA ({data}, recompdata inside that folder). That is the data folder then, so everything stays with
+// the game the launcher moves, backs up and uninstalls; without the variable nothing changes. The first start with it
+// COPIES in what 1.0.7 to 1.0.9 kept next to the game's folder (<library>/Country-Box-data); nothing there is moved or
+// deleted. Each item goes to <name>.copying, is read back, and only then is renamed into place; a marker
+// (.country-box-data-copied) is written last and is the only sign it is done. A start cut short leaves .copying items
+// that the next start removes and copies again. Temporary files and caches are not copied. If the copy fails, that
+// run keeps the old folder, and the next start tries again.
 #pragma once
 #include <atomic>
 #include <cstdint>
@@ -33,7 +42,10 @@
 
 std::string default_launcher_home();   // the base: the data folder when portable, else the legacy place (above)
 std::string legacy_launcher_home();    // $XDG_DATA_HOME/country-box, else ~/.local/share/country-box
-std::string portable_data_dir();       // <next to the AppImage / extracted folder>/Country-Box-data; "" for a bare binary
+std::string portable_data_dir();       // RecompLauncher's {data} (above), else <next to the AppImage / extracted
+                                       // folder>/Country-Box-data; "" for a bare binary
+std::string recomplauncher_data_dir(); // RECOMPLAUNCHER_DATA when it is an absolute path (Linux), else ""
+bool under_recomplauncher();           // RECOMPLAUNCHER=1 (Linux): RecompLauncher installs updates, never the hub
 std::string base_note();               // why the base is not the data folder ("" when it is, or for a bare binary)
 void set_base_home(const std::string &dir);   // this run uses dir as the base (migration pending or failed; done)
 std::string library_location_file();   // <base>/library-location
@@ -85,3 +97,14 @@ bool keep_library_here(const Migration &plan, std::string &err);
 // Runs it (blocking; run on a thread for progress). picked: "" = the data folder, else the folder the player chose
 // (library_target rules). On success the base is the data folder (set_base_home), recording where the library is.
 void migrate_library(const Migration &plan, const std::string &picked, LibraryMove &m);
+
+// The first-start copy into RecompLauncher's {data} (above). needed: there is something to copy and it was not
+// copied before. busy: a game runs from the old folder right now (it stays this run's; try again next start).
+struct OldDataCopy {
+    bool needed = false, busy = false;
+    std::string from;   // <library>/Country-Box-data
+    std::string to;     // RECOMPLAUNCHER_DATA
+};
+OldDataCopy plan_old_data_copy();
+// Runs it (blocking; run on a thread for progress): m.ok, or m.headline and m.explain; then m.finished.
+void copy_old_data(const OldDataCopy &plan, LibraryMove &m);

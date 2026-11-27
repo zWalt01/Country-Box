@@ -1349,7 +1349,7 @@ void Ui::draw_result(ImVec2 mn, ImVec2 mx) {
 // ---- the update channel
 
 void Ui::start_update_check() {
-    if (getenv("CB_LAUNCHER_NO_UPDATE")) return;
+    if (getenv("CB_LAUNCHER_NO_UPDATE") || under_recomplauncher()) return;   // RecompLauncher installs the updates
     checked_ = false;
     checker_ = std::make_unique<UpdateChecker>(lib_.home());
 }
@@ -1360,7 +1360,7 @@ void Ui::show_update_ask() {
 }
 
 void Ui::start_update() {
-    if (!update_info_.available || update_) return;
+    if (!update_info_.available || update_ || under_recomplauncher()) return;
     std::vector<std::pair<std::string, std::string>> builds;
     for (auto &g : lib_.games())
         if (!g.build_dir.empty()) builds.push_back({g.id, g.build_dir});
@@ -1765,7 +1765,10 @@ void Ui::draw_about(ImVec2 mn, ImVec2 mx) {
     para(fonts.body, art::kCream,
          "Updates come from this project's GitHub Releases and are checked when the launcher opens. The download is "
          "verified against its published SHA-256.");
-    if (checker_) {
+    if (under_recomplauncher()) {   // no check, and the button greyed out: RecompLauncher brings every release
+        para(fonts.body, art::kMuted, "Started from RecompLauncher, which installs Country-Box's updates.");
+        button("##upd", "Check for updates", V(x, y), V(320 * s_, 54 * s_), kButton, false, fonts.body);
+    } else if (checker_) {
         para(fonts.body, art::kMuted, "Checking for updates…");
         button("##upd", "Check for updates", V(x, y), V(320 * s_, 54 * s_), kButton, false, fonts.body);
     } else if (checked_) {
