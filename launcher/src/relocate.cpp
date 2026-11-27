@@ -701,6 +701,45 @@ static bool plan_merge(const fs::path &src, const fs::path &dst, const fs::path 
     return true;
 }
 
+// Every item a start renames into {data} before the marker is written goes in this journal first (its path inside
+// {data}, one per line). A start that fails or is cut short leaves items older than the saves the old folder gets
+// next (that start plays from it), so a failure, and the next start, take back exactly those items and copy them
+// again; nothing else in {data} is touched, and the originals never. The journal goes once the marker is there.
+static const char *kJournal = ".country-box-copying-items";
+
+static bool journal_add(const fs::path &to, const fs::path &rel, std::string &err) {
+    std::string line = rel.generic_string(), file = (to / kJournal).string();
+    if (line.find('\n') != std::string::npos) return err = rel.string() + ": a name with a line break can't be copied", false;
+    FILE *f = fopen(file.c_str(), "a");
+    if (!f) return err = "cannot write " + file + ": " + strerror(errno), false;
+    bool ok = fputs((line + "\n").c_str(), f) >= 0 && fflush(f) == 0;
+#ifndef _WIN32
+    ok = ok && fsync(fileno(f)) == 0;
+#endif
+    if (fclose(f) != 0) ok = false;
+    if (!ok) err = "cannot write " + file;
+    return ok;
+}
+
+static bool journal_undo(const fs::path &to, std::string &err) {
+    fs::path file = to / kJournal;
+    std::error_code ec;
+    if (!fs::exists(fs::symlink_status(file, ec))) return true;
+    std::ifstream f(file);
+    if (!f) return err = "cannot read " + file.string(), false;
+    for (std::string line; std::getline(f, line);) {
+        fs::path rel = fs::path(line).lexically_normal();
+        bool plain = !line.empty() && rel.is_relative() && !rel.has_root_name();
+        for (const fs::path &c : rel) plain = plain && c != ".." && c != ".";
+        if (!plain) continue;   // never anything outside {data}
+        if (fs::remove_all(to / rel, ec), ec)
+            return err = (to / rel).string() + ": a copy cut short earlier could not be removed: " + ec.message(), false;
+    }
+    f.close();
+    if (fs::remove(file, ec), ec) return err = "cannot remove " + file.string() + ": " + ec.message(), false;
+    return true;
+}
+
 void copy_old_data(const OldDataCopy &plan, LibraryMove &m) {
     auto fail = [&](const std::string &h, const std::string &e) {
         m.ok = false, m.headline = h, m.explain = e;
@@ -711,9 +750,18 @@ void copy_old_data(const OldDataCopy &plan, LibraryMove &m) {
     m.from = plan.from, m.to = plan.to;
     fs::create_directories(to, ec);
     if (ec) return fail("The game's data folder can't be used.", m.to + ": " + ec.message());
+    std::string err;
+    // what an earlier start put in place without finishing goes first: it is copied again, from the old folder as it
+    // is now (journal above)
+    if (!journal_undo(to, err)) return fail("Your data can't be copied.", err + ". It is still in " + m.from + ".");
+    // a failure from here on takes back what this start put in place
+    auto undo_fail = [&](const std::string &h, const std::string &e) {
+        std::string why;
+        if (!journal_undo(to, why)) fprintf(stderr, "launcher: %s (the next start tries again)\n", why.c_str());
+        fail(h, e);
+    };
     // what to copy: everything not copied yet (an item is renamed into place only once it is complete)
     std::vector<CopyStep> items;
-    std::string err;
     if (!plan_merge(from, to, "", items, err)) return fail("Your data can't be copied.", err + ". It is still in " + m.from + ".");
     int64_t total = 0;
     for (auto &p : items) total += tree_bytes(p.src);
@@ -726,14 +774,14 @@ void copy_old_data(const OldDataCopy &plan, LibraryMove &m) {
         const fs::path &p = step.src, &dst = step.dst;
         fs::path part = dst.parent_path() / (dst.filename().string() + kCopying);
         std::error_code e;
-        if (!copy_tree(p, part, m.done, err) || !same_tree(p, part, err)) {
+        if (!copy_tree(p, part, m.done, err) || !same_tree(p, part, err) || !journal_add(to, dst.lexically_relative(to), err)) {
             fs::remove_all(part, e);
-            return fail("Your data could not be copied.", err + ". It is still in " + m.from + ".");
+            return undo_fail("Your data could not be copied.", err + ". It is still in " + m.from + ".");
         }
         if (fs::rename(part, dst, e), e) {
             std::string why = dst.string() + ": " + e.message();
             fs::remove_all(part, e);
-            return fail("Your data could not be copied.", why + ". It is still in " + m.from + ".");
+            return undo_fail("Your data could not be copied.", why + ". It is still in " + m.from + ".");
         }
     }
     rewrite_builds(to / "library.ini", m.from, m.to);   // builds recorded inside the old folder: their copies here
@@ -743,9 +791,10 @@ void copy_old_data(const OldDataCopy &plan, LibraryMove &m) {
         std::ofstream f(tmp, std::ios::trunc);
         f << "copied from " << m.from << " on " << now_text("%Y-%m-%d %H:%M")
           << "; that folder was left as it was, and is not copied again\n";
-        if (!f) return fail("The copy could not be recorded.", "cannot write " + tmp);
+        if (!f) return undo_fail("The copy could not be recorded.", "cannot write " + tmp);
     }
-    if (rename(tmp.c_str(), file.c_str())) return fail("The copy could not be recorded.", file + ": " + strerror(errno));
+    if (rename(tmp.c_str(), file.c_str())) return undo_fail("The copy could not be recorded.", file + ": " + strerror(errno));
+    fs::remove(to / kJournal, ec);   // done: nothing to take back (a journal left over is never read again)
     m.ok = true;
     m.finished.store(true);
 }

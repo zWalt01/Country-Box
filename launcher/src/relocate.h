@@ -36,7 +36,10 @@
 // that the next start removes and copies again. A folder {data} already has (the launcher writes
 // games/<game>/mp4.ini before a game starts) is gone into, and what it lacks is copied file by file; nothing there is
 // overwritten except each game's mp4.ini, which the old one replaces (also through .copying) until the marker is
-// written. Temporary files and caches are not copied. If the copy fails, that run keeps the old folder, and the next
+// written. Each item is noted in a journal (.country-box-copying-items) before it is renamed into place; a copy that
+// fails takes those items back, and so does the next start after one cut short, so they are copied again from the old
+// folder as it is then (that run played from it). Nothing else in {data} is removed. The journal goes after the
+// marker. Temporary files and caches are not copied. If the copy fails, that run keeps the old folder, and the next
 // start tries again. With RECOMPLAUNCHER_DATA the hub can't move the library: the launcher keeps it in {data}.
 #pragma once
 #include <atomic>
