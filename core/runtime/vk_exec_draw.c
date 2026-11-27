@@ -2166,6 +2166,24 @@ static int gs_input_of(int prim) {
     }
 }
 
+// Census of the draws whose program has a geometry stage (logged once at exit, vk_backend.c gfx_exit_log): per input
+// primitive, plus the ones not replayed (quads, quad strips, polygons). A game that never shows a count has none.
+static uint64_t gs_draw_count[GFX_GS_IN_COUNT + 1];
+static uint64_t pipe_skipped[2];   // draws skipped because their pipeline was still building: [0] without, [1] with a geometry stage
+void vk_exec_gs_census_log(void) {
+    uint64_t sk0 = __atomic_load_n(&pipe_skipped[0], __ATOMIC_RELAXED), sk1 = __atomic_load_n(&pipe_skipped[1], __ATOMIC_RELAXED);
+    if (sk0 + sk1)
+        rt_log("census: draws skipped while their pipeline builds %llu (%llu with a geometry stage)", (unsigned long long)(sk0 + sk1),
+               (unsigned long long)sk1);
+    uint64_t total = 0;
+    for (int i = 0; i <= GFX_GS_IN_COUNT; i++) total += __atomic_load_n(&gs_draw_count[i], __ATOMIC_RELAXED);
+    if (!total) return;
+    rt_log("census: draws with a geometry stage %llu (points %llu, lines %llu, lines+adjacency %llu, triangles %llu, triangles+adjacency %llu; not replayed %llu)",
+           (unsigned long long)total, (unsigned long long)gs_draw_count[GFX_GS_IN_POINTS], (unsigned long long)gs_draw_count[GFX_GS_IN_LINES],
+           (unsigned long long)gs_draw_count[GFX_GS_IN_LINES_ADJ], (unsigned long long)gs_draw_count[GFX_GS_IN_TRIANGLES],
+           (unsigned long long)gs_draw_count[GFX_GS_IN_TRIANGLES_ADJ], (unsigned long long)gs_draw_count[GFX_GS_IN_COUNT]);
+}
+
 static int prepare_draw(VkExec *ex, int prim, int32_t count, int restart) {
     if (ex->render_disabled) return 0;
     cb_res(ex);
@@ -2208,11 +2226,14 @@ static int prepare_draw(VkExec *ex, int prim, int32_t count, int restart) {
     if (gs_in >= 0) {
         ex->gs_topo = gs_in;
         gsh = shader_for(ex, NVN_STAGE_GS, &has_gs, &gs_wait, 0);
+        if (has_gs) __atomic_fetch_add(&gs_draw_count[gs_in], 1, __ATOMIC_RELAXED);
     } else {
         const uint8_t *gctl, *gcode;
         uint32_t glen;
-        if (vk_exec_find_stage(ex->prog, NVN_STAGE_GS, &gctl, &gcode, &glen))
+        if (vk_exec_find_stage(ex->prog, NVN_STAGE_GS, &gctl, &gcode, &glen)) {
+            __atomic_fetch_add(&gs_draw_count[GFX_GS_IN_COUNT], 1, __ATOMIC_RELAXED);
             warn_once(W_GEOMETRY, "a program with a geometry stage is drawn with primitive %d, which Vulkan has no geometry input for: its geometry stage is not replayed", prim);
+        }
     }
     // A draw into a target the previous frame did not render (or into none) waits for a pending shader or pipeline:
     // one-shot draws (volumes and LUTs generated once, later only sampled) would leave their target empty for the
@@ -2289,7 +2310,7 @@ static int prepare_draw(VkExec *ex, int prim, int32_t count, int restart) {
                (unsigned long long)__atomic_load_n(&gfx_counters.frames, __ATOMIC_RELAXED) + 1, waited / 1e6, why,
                pending ? ", skipped after all" : "", count, ex->pass_w, ex->pass_h, tg);
     }
-    if (pending) return 0;   // a background worker is building it: the draw is skipped until it is ready
+    if (pending) return __atomic_fetch_add(&pipe_skipped[s.gs != NULL], 1, __ATOMIC_RELAXED), 0;   // a background worker is building it: the draw is skipped until it is ready
     if (!p || !info) return warn_once(W_PIPELINE, "a graphics pipeline could not be created: draws with it are skipped"), 0;
     bind_pipeline(ex, VK_PIPELINE_BIND_POINT_GRAPHICS, p);
     if (!B.st_valid || memcmp(&B.st, &s, sizeof s)) {

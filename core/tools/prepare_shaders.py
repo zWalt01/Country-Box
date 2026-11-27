@@ -38,7 +38,8 @@ ANS_REC = 4 + 32 + 32 + 147 + 1                            # gfx_shader.c ANS_RE
 LIST_PRIORITY = 1                                          # shader-prepared.bin: warm-up (0 title, 2 other)
 BUNDLED_LIST = ROOT / 'data' / 'shader-list.bin'           # release folder layout (tools/make_release.py)
 BUNDLED_PIPELINES = ROOT / 'data' / 'pipeline-list.bin'
-KEY_MAGIC, KEY_VERSION, KEY_REC = b'TOTKPKEY', 3, 424       # vk_pipeline.c KeysHeader, KEYS_VERSION, sizeof(KeyRec)
+KEY_MAGIC, KEY_VERSION, KEY_REC = b'TOTKPKEY', 4, 456       # vk_pipeline.c KeysHeader, KEYS_VERSION, sizeof(KeyRec)
+KEY_REC_V3 = 424                                           # version 3: the same record without its last 32 bytes (the geometry stage's input id)
 
 
 def read_records(path):
@@ -82,8 +83,10 @@ def read_keys(path):
     if len(b) < 16 or b[:8] != KEY_MAGIC:
         raise SystemExit(f'{path}: not a pipeline keys file')
     version, size = struct.unpack_from('<II', b, 8)
+    if version == 3 and size == KEY_REC_V3:   # no geometry stage in any record
+        return [b[o:o + KEY_REC_V3] + bytes(KEY_REC - KEY_REC_V3) for o in range(16, len(b) - KEY_REC_V3 + 1, KEY_REC_V3)]
     if version != KEY_VERSION or size != KEY_REC:
-        raise SystemExit(f'{path}: keys version {version}, record size {size}; this tool reads {KEY_VERSION} and {KEY_REC}')
+        raise SystemExit(f'{path}: keys version {version}, record size {size}; this tool reads {KEY_VERSION} and {KEY_REC} (and 3, {KEY_REC_V3})')
     return [b[o:o + KEY_REC] for o in range(16, len(b) - KEY_REC + 1, KEY_REC)]
 
 
