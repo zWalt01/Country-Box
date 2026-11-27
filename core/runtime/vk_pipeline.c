@@ -2336,7 +2336,7 @@ static void keys_open(void) {
     gfx_shader_record_at(K.path);   // shader-answers.bin next to it (gfx_shader.c)
     FILE *f = fopen(K.path, "rb");
     if (!f) return;
-    KeysHeader h;
+    KeysHeader h = {{0}, 0, 0};   // a failed read below leaves it zero: "another format", rewritten
     fseek(f, 0, SEEK_END);
     long len = ftell(f);
     fseek(f, 0, SEEK_SET);
