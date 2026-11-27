@@ -210,7 +210,55 @@ def main():
               and not (data / 'logs' / 'half').exists(),
               'interrupted, the next start: the half copies are gone; the old settings won')
 
-        # 5. Move library: RecompLauncher keeps the library in {data} (its own Move moves the whole game)
+        # 5. a copy that fails after putting items in place: that start takes them back; the player then plays from
+        #    the old folder, and the next start brings what changed there
+        case = tmp / 'failed-midway'
+        home = case / 'home'
+        home.mkdir(parents=True)
+        lib, game, data = install(case, extracted)
+        old = lib / 'Country-Box-data'
+        old_data(old)
+        g = data / 'games' / 'dkctf'
+        g.mkdir(parents=True)
+        (g / 'mp4.ini').write_text('fullscreen = 0\n')
+        g.chmod(0o555)   # the dkctf items fail; the others (logs, library.ini, dkcrhd) may already be in place
+        rc, st, err = start(game, env_for(home, data))
+        check(st.get('home') == str(old) and not (data / MARKER).exists(), 'failed midway: that start keeps the old folder')
+        check(sorted(str(p.relative_to(data)) for p in data.rglob('*')) == ['games', 'games/dkctf', 'games/dkctf/mp4.ini'],
+              'failed midway: what that start put in {data} is taken back, the launcher\'s own file stays, no journal left')
+        (old / 'games' / 'dkcrhd' / 'profile' / 'save' / 'slot0.bin').write_bytes(b'played since')
+        (old / 'logs' / 'play.log').write_text('newer log\n')
+        g.chmod(0o755)
+        rc, st, err = start(game, env_for(home, data))
+        check(rc == 0 and st.get('home') == str(data) and (data / MARKER).is_file()
+              and (data / 'games' / 'dkcrhd' / 'profile' / 'save' / 'slot0.bin').read_bytes() == b'played since'
+              and (data / 'logs' / 'play.log').read_text() == 'newer log\n',
+              f'failed midway, the next start: the copy finishes with the newer saves ({err.strip()[-120:] or "ok"})')
+        check(not (data / '.country-box-copying-items').exists(), 'failed midway: the journal goes with the marker')
+
+        # 6. a start killed after putting items in place leaves its journal: the next start takes back exactly those
+        #    items (never anything outside {data}) and copies them again from the old folder as it is now
+        case = tmp / 'killed-midway'
+        home = case / 'home'
+        home.mkdir(parents=True)
+        lib, game, data = install(case, extracted)
+        old = lib / 'Country-Box-data'
+        old_data(old)
+        shutil.copytree(old / 'games' / 'dkcrhd', data / 'games' / 'dkcrhd')
+        (old / 'games' / 'dkcrhd' / 'profile' / 'save' / 'slot0.bin').write_bytes(b'played since')
+        (data / 'keep.txt').write_text('not the copy\'s')
+        outside = case / 'outside.txt'
+        outside.write_text('outside')
+        (data / '.country-box-copying-items').write_text('games/dkcrhd\n../../../outside.txt\n/etc/hostname\n')
+        rc, st, err = start(game, env_for(home, data))
+        check(rc == 0 and st.get('home') == str(data) and (data / MARKER).is_file()
+              and (data / 'games' / 'dkcrhd' / 'profile' / 'save' / 'slot0.bin').read_bytes() == b'played since',
+              f'killed midway, the next start: the journaled item is copied again, newer ({err.strip()[-120:] or "ok"})')
+        check(outside.read_text() == 'outside' and (data / 'keep.txt').is_file()
+              and not (data / '.country-box-copying-items').exists(),
+              'killed midway: nothing outside {data} or not journaled is removed; the journal is gone')
+
+        # 7. Move library: RecompLauncher keeps the library in {data} (its own Move moves the whole game)
         rc, out, err = start(game, env_for(home, data), '--move-library', str(case / 'elsewhere'))
         check(rc == 1 and 'RecompLauncher' in err and not (case / 'elsewhere').exists() and (data / 'games').is_dir(),
               'Move library under RecompLauncher: refused, nothing moved')
