@@ -303,15 +303,24 @@ static void xlate_identity(void) {
 // build dir has its own (as the pipeline cache, vk_pipeline.c cache_path_init).
 static void use_preload_start(void);
 
+#ifdef _WIN32
+#define XLATE_BIN "mp4_xlate.exe"
+#else
+#define XLATE_BIN "mp4_xlate"
+#endif
+
 static void init_paths(void) {
     char exe[PATH_CAP], root[PATH_CAP] = "", exe_dir[PATH_CAP] = "";
     if (plat_exe_path(exe, sizeof exe)) {
         char *last = strrchr(exe, '/');
+#ifdef _WIN32
+        if (!last) last = strrchr(exe, '\\');
+#endif
         if (last) snprintf(exe_dir, sizeof exe_dir, "%.*s", (int)(last - exe), exe);
         for (char *cut = strrchr(exe, '/'); cut; cut = strrchr(exe, '/')) {
             *cut = 0;
             char probe[PATH_CAP + 32];
-            snprintf(probe, sizeof probe, "%s/build/xlate/mp4_xlate", exe);
+            snprintf(probe, sizeof probe, "%s/build/xlate/" XLATE_BIN, exe);
             if (file_exists(probe)) {
                 strcpy(root, exe);
                 break;
@@ -320,10 +329,13 @@ static void init_paths(void) {
     }
     const char *xlate_cfg = cfg_get("MP4_XLATE"), *cache_cfg = cfg_get("MP4_SHADER_CACHE");
     char beside[PATH_CAP + 32];   // a packaged folder (tools/package_build.py) keeps the translator next to the executable
-    if (exe_dir[0]) snprintf(beside, sizeof beside, "%s/mp4_xlate", exe_dir);
+    if (exe_dir[0]) snprintf(beside, sizeof beside, "%s/" XLATE_BIN, exe_dir);
     if (xlate_cfg && *xlate_cfg && strlen(xlate_cfg) < sizeof xlate_exe) strcpy(xlate_exe, xlate_cfg);
     else if (exe_dir[0] && file_exists(beside)) strcpy(xlate_exe, beside);
-    else if (root[0]) snprintf(xlate_exe, sizeof xlate_exe, "%s/build/xlate/mp4_xlate", root);
+#ifdef _WIN32
+    else if (exe_dir[0] && (snprintf(beside, sizeof beside, "%s/fe3h_xlate.exe", exe_dir), file_exists(beside))) strcpy(xlate_exe, beside);
+#endif
+    else if (root[0]) snprintf(xlate_exe, sizeof xlate_exe, "%s/build/xlate/" XLATE_BIN, root);
     if (cache_cfg && *cache_cfg && strlen(cache_cfg) < sizeof cache_dir) strcpy(cache_dir, cache_cfg);
     else if (exe_dir[0]) snprintf(cache_dir, sizeof cache_dir, "%s/shader-cache", exe_dir);
     xlate_identity();

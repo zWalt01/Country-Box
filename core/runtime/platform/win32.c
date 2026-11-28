@@ -343,7 +343,9 @@ int plat_exe_path(char *out, size_t cap) {
     wchar_t w[WPATH];
     DWORD n = GetModuleFileNameW(NULL, w, WPATH);
     if (!n || n >= WPATH) return 0;
-    return WideCharToMultiByte(CP_UTF8, 0, w, -1, out, (int)cap, NULL, NULL) != 0;
+    if (!WideCharToMultiByte(CP_UTF8, 0, w, -1, out, (int)cap, NULL, NULL)) return 0;
+    for (char *c = out; *c; c++) if (*c == '\\') *c = '/';
+    return 1;
 }
 
 size_t plat_getenv(const char *name, char *out, size_t cap) {
@@ -420,7 +422,9 @@ int plat_stderr_path(char *out, size_t cap) {
     DWORD n = GetFinalPathNameByHandleW(h, w, WPATH, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
     if (!n || n >= WPATH) return 0;
     const wchar_t *p = wcsncmp(w, L"\\\\?\\", 4) ? w : w + 4;   // the \\?\ prefix
-    return WideCharToMultiByte(CP_UTF8, 0, p, -1, out, (int)cap, NULL, NULL) != 0;
+    if (!WideCharToMultiByte(CP_UTF8, 0, p, -1, out, (int)cap, NULL, NULL)) return 0;
+    for (char *c = out; *c; c++) if (*c == '\\') *c = '/';
+    return 1;
 }
 
 // ---- desktop

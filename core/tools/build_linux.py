@@ -53,7 +53,13 @@ def runtime_sources():
     """Every runtime C and C++ file of the binary: runtime/*.c, *.cpp, platform/*.c, ui/*.cpp and Dear ImGui (with its
     Vulkan back end). kernel_probe_spin.c is lifted-run code, built with the generated flags."""
     pats = ('*.c', '*.cpp', 'platform/*.c', 'ui/*.cpp', 'third_party/imgui/*.cpp', 'third_party/imgui/backends/*.cpp')
-    return sorted(p for pat in pats for p in RUNTIME.glob(pat) if p.name != 'kernel_probe_spin.c')
+    is_win = sys.platform == 'win32' or os.name == 'nt'
+    skip = {'kernel_probe_spin.c'}
+    if is_win:
+        skip.update({'linux.c', 'prof_linux.c', 'rdoc_linux.c'})
+    else:
+        skip.update({'win32.c', 'prof_win.c', 'rdoc_win.c'})
+    return sorted(p for pat in pats for p in RUNTIME.glob(pat) if p.name not in skip)
 
 
 def exefs_hashes(exefs, names):
@@ -67,47 +73,100 @@ def exefs_hashes(exefs, names):
 
 
 def mem_total():
-    with open('/proc/meminfo') as f:
-        for line in f:
-            if line.startswith('MemTotal:'):
-                return int(line.split()[1]) * 1024
+    if sys.platform == 'win32' or os.name == 'nt':
+        import ctypes
+        class MEMORYSTATUSEX(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", ctypes.c_ulong),
+                ("dwMemoryLoad", ctypes.c_ulong),
+                ("ullTotalPhys", ctypes.c_ulonglong),
+                ("ullAvailPhys", ctypes.c_ulonglong),
+                ("ullTotalPageFile", ctypes.c_ulonglong),
+                ("ullAvailPageFile", ctypes.c_ulonglong),
+                ("ullTotalVirtual", ctypes.c_ulonglong),
+                ("ullAvailVirtual", ctypes.c_ulonglong),
+                ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
+            ]
+        stat = MEMORYSTATUSEX()
+        stat.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat)):
+            return stat.ullTotalPhys
+        return 8 << 30
+    try:
+        with open('/proc/meminfo') as f:
+            for line in f:
+                if line.startswith('MemTotal:'):
+                    return int(line.split()[1]) * 1024
+    except Exception:
+        pass
     return 8 << 30
 
 
 def ninja_text(gen, out, mods, gen_opt='-O1'):
-    q = lambda p: str(p).replace('$', '$$').replace(' ', '$ ').replace(':', '$:')
+    is_win = sys.platform == 'win32' or os.name == 'nt'
+    q = lambda p: str(p).replace('\\', '/').replace('$', '$$').replace(' ', '$ ').replace(':', '$:')
     # Country-Box: flags reach the shell through Ninja's variables, unquoted; a folder with a space (a portable
     # AppImage's .home next to "My Games", a user name) split every -I in two. Each one is shell-quoted, then
     # Ninja-escaped.
-    a = lambda s: shlex.quote(str(s)).replace('$', '$$')
+    a = lambda s: shlex.quote(str(s).replace('\\', '/')).replace('$', '$$')
     inc = ['-I', a(RUNTIME), '-I', a(gen)]
-    rt_inc = inc + ['-I', a(out), '-I', a(RUNTIME / 'third_party'), '-I', a(RUNTIME / 'third_party' / 'vma'),
-                    '-I', a(RUNTIME / 'third_party' / 'imgui')] + [a(f) for f in pkg('--cflags', PKGS)]
+
+    if is_win:
+        deps = ROOT.parent / 'toolchain' / 'deps-mingw'
+        compat_dir = RUNTIME / 'platform' / 'compat'
+        rt_inc = inc + ['-I', a(out), '-I', a(compat_dir), '-I', a(RUNTIME / 'third_party'),
+                        '-I', a(RUNTIME / 'third_party' / 'vma'), '-I', a(RUNTIME / 'third_party' / 'imgui')]
+        if deps.is_dir() and (deps / 'include').is_dir():
+            rt_inc += ['-I', a(deps / 'include'), '-I', a(deps / 'include' / 'vma')]
+        gen_flags_str = " ".join([gen_opt if f == "-O1" else f for f in GEN_FLAGS] + inc)
+        rt_flags_str = " ".join(RT_FLAGS + ['-D_WIN32_WINNT=0x0A00'] + rt_inc)
+        cxx_flags_str = " ".join(CXX_FLAGS + ['-D_WIN32_WINNT=0x0A00'] + rt_inc)
+        win_libs = ['-Wl,--stack,16777216', '-lsynchronization', '-lpsapi', '-lbcrypt', '-luser32', '-lgdi32', '-ldwmapi', '-lwinmm',
+                    '-lvulkan-1', '-lSDL3', '-lopus', '-l:libvpx.a', '-l:libz.a',
+                    '-l:libc++.a', '-l:libc++abi.a', '-l:libunwind.a', '-l:libwinpthread.a']
+        if deps.is_dir() and (deps / 'lib').is_dir():
+            win_libs = ['-L' + a(deps / 'lib')] + win_libs
+        libs_str = " ".join(win_libs)
+    else:
+        rt_inc = inc + ['-I', a(out), '-I', a(RUNTIME / 'third_party'), '-I', a(RUNTIME / 'third_party' / 'vma'),
+                        '-I', a(RUNTIME / 'third_party' / 'imgui')] + [a(f) for f in pkg('--cflags', PKGS)]
+        gen_flags_str = " ".join([gen_opt if f == "-O1" else f for f in GEN_FLAGS] + inc)
+        rt_flags_str = " ".join(RT_FLAGS + rt_inc)
+        cxx_flags_str = " ".join(CXX_FLAGS + rt_inc)
+        libs_str = " ".join(pkg("--libs", PKGS) + LINK_LIBS)
+
+    clang_cmd = (shutil.which('clang') or 'clang').replace('\\', '/')
+    clangxx_cmd = (shutil.which('clang++') or 'clang++').replace('\\', '/')
+    if ' ' in clang_cmd:
+        clang_cmd = f'"{clang_cmd}"'
+    if ' ' in clangxx_cmd:
+        clangxx_cmd = f'"{clangxx_cmd}"'
+
     lines = [
         '# Written by tools/build_linux.py; do not edit.',
         'ninja_required_version = 1.10',
-        f'genflags = {" ".join([gen_opt if f == "-O1" else f for f in GEN_FLAGS] + inc)}',
-        f'rtflags = {" ".join(RT_FLAGS + rt_inc)}',
-        f'cxxflags = {" ".join(CXX_FLAGS + rt_inc)}',
-        f'libs = {" ".join(pkg("--libs", PKGS) + LINK_LIBS)}',
+        f'genflags = {gen_flags_str}',
+        f'rtflags = {rt_flags_str}',
+        f'cxxflags = {cxx_flags_str}',
+        f'libs = {libs_str}',
         '',
         'rule cc_gen',
-        '  command = clang $genflags -MD -MF $out.d -c $in -o $out',
+        f'  command = {clang_cmd} $genflags -MD -MF $out.d -c $in -o $out',
         '  deps = gcc',
         '  depfile = $out.d',
         '  description = CC $in',
         'rule cc_rt',
-        '  command = clang $rtflags -MD -MF $out.d -c $in -o $out',
+        f'  command = {clang_cmd} $rtflags -MD -MF $out.d -c $in -o $out',
         '  deps = gcc',
         '  depfile = $out.d',
         '  description = CC $in',
         'rule cxx_rt',
-        '  command = clang++ $cxxflags -MD -MF $out.d -c $in -o $out',
+        f'  command = {clangxx_cmd} $cxxflags -MD -MF $out.d -c $in -o $out',
         '  deps = gcc',
         '  depfile = $out.d',
         '  description = CXX $in',
         'rule link',
-        '  command = clang++ -fuse-ld=lld -Wl,-Map=$out.map @$out.rsp $libs -o $out',
+        f'  command = {clangxx_cmd} -fuse-ld=lld -Wl,-Map=$out.map @$out.rsp $libs -o $out',
         '  rspfile = $out.rsp',
         '  rspfile_content = $in_newline',
         '  description = LINK $out',
@@ -127,7 +186,7 @@ def ninja_text(gen, out, mods, gen_opt='-O1'):
     spin = out / 'obj' / 'lifted' / 'kernel_probe_spin.o'
     lines.append(f'build {q(spin)}: cc_gen {q(RUNTIME / "kernel_probe_spin.c")}')
     run = lifted[:1] + [spin] + lifted[1:]   # inside the lifted run, not at either end
-    exe = out / 'country-box'
+    exe = out / ('country-box.exe' if is_win else 'country-box')
     lines += ['', f'build {q(exe)}: link ' + ' '.join(q(o) for o in rt + run), f'default {q(exe)}', '']
     return '\n'.join(lines), exe
 
@@ -149,9 +208,26 @@ def main():
                                    'Unity RomFS, dktf for a RomFS with MaterialArchive.arc)')
     a = ap.parse_args()
     gen, out = a.gen.resolve(), a.out.resolve()
-    if out.is_relative_to(ROOT.parent):   # ROOT.parent: the Country-Box repository
-        sys.exit(f'{out} is inside the repository: game-derived objects must live outside it')
-    for tool in ('clang', 'clang++', 'ld.lld', 'ninja', 'pkg-config'):
+    try:
+        if out.is_relative_to(ROOT.parent):   # ROOT.parent: the Country-Box repository
+            sys.exit(f'{out} is inside the repository: game-derived objects must live outside it')
+    except ValueError:
+        pass
+    is_win = sys.platform == 'win32' or os.name == 'nt'
+    tc_bin = ROOT.parent / 'toolchain' / 'llvm' / 'bin'
+    deps_bin = ROOT.parent / 'toolchain' / 'deps-mingw' / 'bin'
+    if is_win:
+        path_parts = []
+        if tc_bin.is_dir():
+            path_parts.append(str(tc_bin))
+        if deps_bin.is_dir():
+            path_parts.append(str(deps_bin))
+        if path_parts:
+            os.environ['PATH'] = os.pathsep.join(path_parts) + os.pathsep + os.environ.get('PATH', '')
+        tools = ('clang', 'clang++', 'ld.lld', 'ninja')
+    else:
+        tools = ('clang', 'clang++', 'ld.lld', 'ninja', 'pkg-config')
+    for tool in tools:
         if not shutil.which(tool):
             sys.exit(f'missing: {tool}')
     layout = bg.read_layout(gen)
@@ -174,8 +250,23 @@ def main():
     r = subprocess.run(['ninja', '-C', str(out), '-j', str(jobs)])
     if r.returncode:
         sys.exit(r.returncode)
+    # On Windows, copy dependencies DLLs next to the binary
+    if is_win and deps_bin.is_dir():
+        for dll in deps_bin.glob('*.dll'):
+            dst = out / dll.name
+            if not dst.exists() or dst.stat().st_size != dll.stat().st_size:
+                shutil.copy2(dll, dst)
+    if is_win:
+        for h264_path in (deps_bin / 'openh264.dll', ROOT.parent / 'build' / 'launcher' / 'openh264.dll'):
+            if h264_path.is_file():
+                dst = out / 'openh264.dll'
+                if not dst.exists() or dst.stat().st_size != h264_path.stat().st_size:
+                    shutil.copy2(h264_path, dst)
+                break
     # The shader translator next to the binary (runtime/gfx_shader.c looks there first): tools/build_xlate.py's output.
-    xlate = ROOT / 'build' / 'xlate' / 'mp4_xlate'
+    xlate = ROOT / 'build' / 'xlate' / ('mp4_xlate.exe' if is_win else 'mp4_xlate')
+    if not xlate.is_file() and is_win and (deps_bin / 'fe3h_xlate.exe').is_file():
+        xlate = deps_bin / 'fe3h_xlate.exe'
     if xlate.is_file():
         for f in (xlate, xlate.with_name('mp4_xlate.id')):
             if f.is_file() and (not (out / f.name).exists() or (out / f.name).read_bytes() != f.read_bytes()):

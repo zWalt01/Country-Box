@@ -6,11 +6,13 @@
 #include "prepare.h"
 
 #include <fcntl.h>
+#ifndef _WIN32
 #include <poll.h>
 #include <sys/resource.h>
 #include <sys/statvfs.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <cctype>
@@ -61,10 +63,32 @@ static bool write_text(const std::string &p, const std::string &text) {
         f << text;
         if (!f) return false;
     }
+#ifdef _WIN32
+    return MoveFileExA(tmp.c_str(), p.c_str(), MOVEFILE_REPLACE_EXISTING) != 0;
+#else
     return !rename(tmp.c_str(), p.c_str());
+#endif
 }
 
 static std::string which(const std::string &name) {
+#ifdef _WIN32
+    if (name.find('/') != std::string::npos || name.find('\\') != std::string::npos) {
+        std::error_code ec;
+        if (fs::is_regular_file(name, ec)) return name;
+        if (fs::is_regular_file(name + ".exe", ec)) return name + ".exe";
+        return "";
+    }
+    const char *path = getenv("PATH");
+    std::stringstream ps(path ? path : "");
+    for (std::string d; std::getline(ps, d, ';');) {
+        if (d.empty()) continue;
+        std::string p = d + "\\" + name;
+        std::error_code ec;
+        if (fs::is_regular_file(p, ec)) return p;
+        if (fs::is_regular_file(p + ".exe", ec)) return p + ".exe";
+    }
+    return "";
+#else
     if (name.find('/') != std::string::npos) return access(name.c_str(), X_OK) == 0 ? name : "";
     const char *path = getenv("PATH");
     std::stringstream ps(path ? path : "");
@@ -74,6 +98,7 @@ static std::string which(const std::string &name) {
         if (access(p.c_str(), X_OK) == 0) return p;
     }
     return "";
+#endif
 }
 
 static double now_s() {
@@ -102,6 +127,21 @@ static uint64_t dir_bytes(const std::string &path) {
 // Free space of the filesystem that holds path (tests can pretend with CB_TEST_DISK_FREE_GB).
 static uint64_t free_bytes(const std::string &path) {
     if (const char *t = getenv("CB_TEST_DISK_FREE_GB"); t && *t) return (uint64_t)(atof(t) * (1 << 30));
+#ifdef _WIN32
+    ULARGE_INTEGER free_bytes_avail;
+    std::string p = fs::weakly_canonical(path).string();
+    for (;;) {
+        if (GetDiskFreeSpaceExA(p.c_str(), &free_bytes_avail, NULL, NULL)) return free_bytes_avail.QuadPart;
+        std::error_code ec;
+        if (!fs::exists(p, ec)) {
+            std::string parent = fs::path(p).parent_path().string();
+            if (parent == p || parent.empty()) return 0;
+            p = parent;
+            continue;
+        }
+        return 0;
+    }
+#else
     struct statvfs st;
     std::string p = fs::weakly_canonical(path).string();
     for (;;) {
@@ -115,6 +155,7 @@ static uint64_t free_bytes(const std::string &path) {
         }
         return 0;
     }
+#endif
 }
 
 static std::string human_gb(uint64_t bytes) {
@@ -172,7 +213,7 @@ std::string prep_payload_dir(const std::string &exe) {
         return valid(e) ? e : "";   // an override that is not a payload is reported as no payload
     std::error_code ec;
     std::string dir = fs::path(exe).parent_path().string();
-    for (const std::string &cand : {dir + "/prep", dir + "/../share/country-box/prep", dir + "/../.."})
+    for (const std::string &cand : {dir + "/prep", dir + "/../share/country-box/prep", dir + "/../..", dir + "/..", dir})
         if (std::string p = fs::weakly_canonical(cand, ec).string(); valid(p)) return p;
     return "";
 }
@@ -180,12 +221,16 @@ std::string prep_payload_dir(const std::string &exe) {
 std::string toolkit_dir(const std::string &exe) {
     auto valid = [](const std::string &p) {
         std::error_code ec;
+#ifdef _WIN32
+        return !p.empty() && fs::is_regular_file(p + "/bin/clang.exe", ec);
+#else
         return !p.empty() && fs::is_regular_file(p + "/bin/clang", ec) && fs::is_regular_file(p + "/python/bin/python3", ec);
+#endif
     };
     if (const char *e = getenv("CB_TOOLKIT"); e && *e) return valid(e) ? e : "";
     std::error_code ec;
     std::string dir = fs::path(exe).parent_path().string();
-    for (const std::string &cand : {dir + "/toolkit", dir + "/../share/country-box/toolkit"})
+    for (const std::string &cand : {dir + "/toolkit", dir + "/../share/country-box/toolkit", dir + "/../../toolchain/llvm", dir + "/../toolchain/llvm", dir + "/toolchain/llvm"})
         if (std::string p = fs::weakly_canonical(cand, ec).string(); valid(p)) return p;
     return "";
 }
@@ -213,10 +258,23 @@ PrepareJob::PrepareJob(std::string home, const Game &g, Mode mode)
       mode_(mode) {
     build_dir_ = home_ + "/games/" + game_;
     gen_dir_ = home_ + "/gen/" + game_;
+#ifdef _WIN32
+    char exe[MAX_PATH];
+    DWORD n = GetModuleFileNameA(NULL, exe, MAX_PATH);
+#else
     char exe[4096];
     ssize_t n = readlink("/proc/self/exe", exe, sizeof exe - 1);
+#endif
     payload_ = prep_payload_dir(n > 0 ? std::string(exe, (size_t)n) : "");
     toolkit_ = toolkit_dir(n > 0 ? std::string(exe, (size_t)n) : "");
+#ifdef _WIN32
+    if (toolkit_.empty() && !payload_.empty()) {
+        std::error_code ec;
+        if (fs::is_regular_file(payload_ + "/toolchain/llvm/bin/clang.exe", ec)) {
+            toolkit_ = payload_ + "/toolchain/llvm";
+        }
+    }
+#endif
     thread_ = std::thread([this] { run(); });
 }
 
@@ -452,9 +510,13 @@ bool PrepareJob::child(const std::vector<std::string> &argv, const std::string &
 static std::string own_python_env() { return default_launcher_home() + "/python"; }
 
 static std::string own_python() {
+#ifdef _WIN32
+    return "";
+#else
     std::string p = own_python_env() + "/bin/python";
     std::error_code ec;
     return fs::exists(p, ec) ? p : std::string();
+#endif
 }
 
 // A plain-words list of everything missing, or "" when the machine can build. CB_TEST_TOOLS_OK skips the check
@@ -465,6 +527,20 @@ static std::string missing_tools(std::string *python) {
         *python = getenv("CB_PYTHON") && *getenv("CB_PYTHON") ? getenv("CB_PYTHON") : "python3";
         return "";
     }
+#ifdef _WIN32
+    for (const char *n : {"clang", "clang++", "ld.lld", "ninja"})
+        if (which(n).empty()) missing += (missing.empty() ? std::string() : std::string(", ")) + n;
+    std::string own = own_python();
+    *python = which(getenv("CB_PYTHON") && *getenv("CB_PYTHON") ? getenv("CB_PYTHON")
+                    : !own.empty() ? own.c_str() : "python");
+    if (python->empty()) *python = which("python3");
+    if (python->empty()) missing += (missing.empty() ? std::string() : std::string(", ")) + "python";
+    else {
+        std::string out;
+        int rc = proc_run({*python, "-c", "import capstone, unicorn, numpy"}, "", {}, out, 30000);
+        if (rc != 0) missing += (missing.empty() ? std::string() : std::string(", ")) + "python with capstone, unicorn and numpy";
+    }
+#else
     for (const char *n : {"clang", "clang++", "ld.lld", "ninja", "pkg-config"})
         if (which(n).empty()) missing += (missing.empty() ? std::string() : std::string(", ")) + n;
     // CB_PYTHON, else the launcher's own environment (the one the hint below creates), else the system python3:
@@ -483,11 +559,19 @@ static std::string missing_tools(std::string *python) {
         if (proc_run({which("pkg-config"), "--exists", "sdl3", "vulkan", "opus", "vpx"}, "", {}, out, 15000) != 0)
             missing += (missing.empty() ? std::string() : std::string(", ")) + "the SDL 3, Vulkan, Opus and vpx development packages";
     }
+#endif
     return missing;
 }
 
 // What to run for what is missing, in this distribution's words (from /etc/os-release). SteamOS has no compiler.
 static std::string missing_tools_hint(const std::string &missing) {
+#ifdef _WIN32
+    return "Country-Box needs " + missing + " to build the game.\n"
+           "Ensure Python 3 is installed with capstone, unicorn and numpy:\n"
+           "pip install capstone unicorn numpy\n"
+           "The toolchain can also be placed in Country-Box's toolchain/ folder.\n"
+           "Then press Prepare again.";
+#else
     std::string os = read_text("/etc/os-release"), id;
     for (const char *key : {"\nID=", "\nID_LIKE="}) {
         size_t at = ("\n" + os).find(key);
@@ -519,6 +603,7 @@ static std::string missing_tools_hint(const std::string &missing) {
                "libopus-dev libvpx-dev zlib1g-dev" + tail;
     return "Install " + missing + " with your distribution's package manager (development packages for SDL3, "
            "Vulkan, Opus, libvpx and zlib too)." + tail;
+#endif
 }
 
 // The build kit at a fixed place: <home>/prep. An AppImage mounts at a new /tmp/.mount_* path every run, and that
@@ -542,7 +627,9 @@ static std::string sync_payload(const std::string &src, const std::string &dst) 
         fs::create_directories(to.parent_path(), ec);
         std::string tmp = to.string() + ".new";
         if (!write_text(tmp, a)) return src;
+#ifndef _WIN32
         fs::permissions(tmp, fs::status(it->path(), ec).permissions(), ec);
+#endif
         fs::rename(tmp, to, ec);
         if (ec) return src;
     }
@@ -560,7 +647,11 @@ bool PrepareJob::preflight(std::string *python) {
     *python = "";
     if (mode_ == ShadersOnly) {   // no tools needed: the game's own binary does the work
         std::error_code ec;
+#ifdef _WIN32
+        if (!fs::is_regular_file(build_dir_ + "/country-box.exe", ec)) {
+#else
         if (!fs::is_regular_file(build_dir_ + "/country-box", ec)) {
+#endif
             outcome_.kind = "shaders";
             outcome_.headline = "The game is not built here yet.";
             outcome_.hint = "Prepare it first.";
@@ -580,6 +671,11 @@ bool PrepareJob::preflight(std::string *python) {
     }
     set_line_text("checking the build kit");
     payload_ = sync_payload(payload_, home_ + "/prep");
+#ifdef _WIN32
+    if (!toolkit_.empty() && which("clang").empty()) {
+        use_toolkit();
+    }
+#endif
     std::string missing = missing_tools(python);
     // Something missing and the kit is here (SteamOS has no compiler): build with the kit, straight from the AppImage
     if (!missing.empty() && !toolkit_.empty() && use_toolkit()) {
@@ -690,6 +786,21 @@ bool PrepareJob::write_lift_stamp() {
 // Steam Deck (16 GB shared with the GPU) does not run out of memory.
 static int prep_jobs(bool compile) {
     if (const char *e = getenv("CB_PREP_JOBS"); e && atoi(e) > 0) return atoi(e);
+#ifdef _WIN32
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    long hw = std::max(1L, (long)si.dwNumberOfProcessors);
+    long jobs = hw;
+    if (compile) {
+        MEMORYSTATUSEX ms;
+        ms.dwLength = sizeof(ms);
+        if (GlobalMemoryStatusEx(&ms)) {
+            long long avail_kb = ms.ullAvailPhys / 1024;
+            jobs = std::min(jobs, std::max(1L, (long)(avail_kb / (1536L * 1024))));
+        }
+    }
+    return (int)std::max(1L, jobs);
+#else
     long hw = std::max(1L, sysconf(_SC_NPROCESSORS_ONLN));
     long jobs = hw;
     if (compile) {
@@ -703,6 +814,7 @@ static int prep_jobs(bool compile) {
         if (avail_kb > 0) jobs = std::min(jobs, std::max(1L, avail_kb / (1536L * 1024)));
     }
     return (int)std::max(1L, jobs);
+#endif
 }
 
 bool PrepareJob::do_lift(const std::string &python) {
@@ -761,6 +873,15 @@ bool PrepareJob::do_compile(const std::string &python) {
         return false;
     }
     std::error_code ec;
+#ifdef _WIN32
+    if (!fs::is_regular_file(build_dir_ + "/country-box.exe", ec)) {
+        outcome_.kind = "compile";
+        outcome_.headline = "The build ended without a game binary.";
+        outcome_.explain = "The build tool reported success but " + build_dir_ + "/country-box.exe is not there.";
+        outcome_.hint = "Report the problem with the log below.";
+        return false;
+    }
+#else
     if (!fs::is_regular_file(build_dir_ + "/country-box", ec)) {
         outcome_.kind = "compile";
         outcome_.headline = "The build ended without a game binary.";
@@ -768,6 +889,7 @@ bool PrepareJob::do_compile(const std::string &python) {
         outcome_.hint = "Report the problem with the log below.";
         return false;
     }
+#endif
     return true;
 }
 
@@ -779,6 +901,12 @@ bool PrepareJob::place_runtime_files() {
     // a game built with the kit finds SDL next to itself (rpath $ORIGIN): the kit's, not the machine's, which may be
     // older than the headers it was compiled against (SteamOS 3.9: SDL 3.4.12; the kit: 3.4.18)
     if (toolkit_used_) {
+#ifdef _WIN32
+        std::string sdl_src = payload_ + "/toolchain/deps-mingw/bin/SDL3.dll";
+        if (fs::is_regular_file(sdl_src, ec)) {
+            fs::copy_file(sdl_src, build_dir_ + "/SDL3.dll", fs::copy_options::overwrite_existing, ec);
+        }
+#else
         fs::copy_file(toolkit_link_ + "/lib/libSDL3.so.0", build_dir_ + "/libSDL3.so.0", fs::copy_options::overwrite_existing, ec);
         if (ec) {
             outcome_.kind = "compile";
@@ -787,7 +915,20 @@ bool PrepareJob::place_runtime_files() {
             outcome_.hint = "Check that the drive is writable, then Prepare again: nothing will be rebuilt.";
             return false;
         }
+#endif
     }
+#ifdef _WIN32
+    std::string xlate = payload_ + "/build/xlate/mp4_xlate.exe";
+    if (!fs::is_regular_file(xlate, ec)) xlate = payload_ + "/toolchain/deps-mingw/bin/fe3h_xlate.exe";
+    if (fs::is_regular_file(xlate, ec)) {
+        fs::copy_file(xlate, build_dir_ + "/mp4_xlate.exe", fs::copy_options::overwrite_existing, ec);
+    }
+    std::string h264 = payload_ + "/build/launcher/openh264.dll";
+    if (!fs::is_regular_file(h264, ec)) h264 = payload_ + "/toolchain/deps-mingw/bin/openh264.dll";
+    if (fs::is_regular_file(h264, ec)) {
+        fs::copy_file(h264, build_dir_ + "/openh264.dll", fs::copy_options::overwrite_existing, ec);
+    }
+#else
     std::string xlate = payload_ + "/build/xlate/mp4_xlate";
     if (fs::is_regular_file(xlate, ec)) {
         fs::copy_file(xlate, build_dir_ + "/mp4_xlate", fs::copy_options::overwrite_existing, ec);
@@ -795,6 +936,7 @@ bool PrepareJob::place_runtime_files() {
     }
     if (fs::is_regular_file(xlate + ".id", ec))
         fs::copy_file(xlate + ".id", build_dir_ + "/mp4_xlate.id", fs::copy_options::overwrite_existing, ec);
+#endif
     for (const char *name : {"shader-list.bin", "pipeline-list.bin", "shader-patches.bin"}) {
         // the shader lists of Tropical Freeze live in games/dktf (the runtime's name), its manifest in games/dkctf
         std::string from = payload_ + "/games/" + (game_ == "dkctf" ? std::string("dktf") : game_) + "/" + name;
@@ -823,7 +965,12 @@ bool PrepareJob::do_shaders() {
     stage.store(Shaders), stage_done.store(0), stage_total.store(-1), eta_s.store(-1);
     stage_elapsed_base_ = now_s();
     set_line_text("preparing the shaders");
-    if (!child({build_dir_ + "/country-box", "--prepare-shaders", "--exefs", copy_ + "/exefs", "--romfs",
+#ifdef _WIN32
+    std::string game_bin = build_dir_ + "/country-box.exe";
+#else
+    std::string game_bin = build_dir_ + "/country-box";
+#endif
+    if (!child({game_bin, "--prepare-shaders", "--exefs", copy_ + "/exefs", "--romfs",
                 copy_ + "/romfs"},
                build_dir_, "shaders")) {
         if (outcome_.kind == "cancelled") return false;
@@ -868,6 +1015,15 @@ void PrepareJob::run() {
 // AppImage got this time: compile commands and ninja's dependency log keep that path, so the next Prepare rebuilds only
 // what changed instead of everything. The link exists only while a game is being prepared; nothing is copied or installed.
 bool PrepareJob::use_toolkit() {
+#ifdef _WIN32
+    toolkit_link_ = toolkit_;
+    const char *path = getenv("PATH");
+    saved_path_ = path ? path : "";
+    std::string new_path = toolkit_link_ + "\\bin;" + payload_ + "\\toolchain\\deps-mingw\\bin;" + saved_path_;
+    _putenv_s("PATH", new_path.c_str());
+    toolkit_used_ = true;
+    return true;
+#else
     std::error_code ec;
     fs::create_directories(default_launcher_home(), ec);
     toolkit_link_ = default_launcher_home() + "/toolkit";
@@ -887,15 +1043,20 @@ bool PrepareJob::use_toolkit() {
     setenv("CB_PYTHON", (toolkit_link_ + "/python/bin/python3").c_str(), 1);
     toolkit_used_ = true;
     return true;
+#endif
 }
 
 void PrepareJob::drop_toolkit() {
     if (!toolkit_used_) return;
+#ifdef _WIN32
+    _putenv_s("PATH", saved_path_.c_str());
+#else
     setenv("PATH", saved_path_.c_str(), 1);
     if (had_python_) setenv("CB_PYTHON", saved_python_.c_str(), 1);
     else unsetenv("CB_PYTHON");
     std::error_code ec;
     if (fs::is_symlink(toolkit_link_, ec)) fs::remove(toolkit_link_, ec);
+#endif
     toolkit_used_ = false;
 }
 

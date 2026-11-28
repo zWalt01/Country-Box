@@ -156,6 +156,9 @@ bool Library::save(std::string *err) const {
             return false;
         }
     }
+#ifdef _WIN32
+    fs::remove(home_ + "/library.ini", ec);
+#endif
     if (rename(tmp.c_str(), (home_ + "/library.ini").c_str())) {
         if (err) *err = "cannot replace library.ini: " + std::string(strerror(errno));
         return false;

@@ -20,6 +20,7 @@
 #include "host.h"
 #include "kernel.h"
 #include "platform/platform.h"
+#include "savestate.h"
 
 #ifdef R_OK
 #undef R_OK
@@ -2508,3 +2509,28 @@ void kern_ap_info(KernApInfo *out) {
                         .host = g_ap_host, .pc = g_ap_pc, .deferred = g_ap_deferred, .fail = g_ap_fail};
     unlock();
 }
+
+// Country-Box: save states stubs for Windows
+int kern_ss_freeze(uint64_t timeout_ns, char *why, size_t wn) {
+    (void)timeout_ns;
+    if (why && wn) snprintf(why, wn, "save states are not supported on Windows yet");
+    return -1;
+}
+int kern_ss_host_wait(void *m) {
+    (void)m;
+    return 0;
+}
+void kern_ss_thaw(void) {}
+int kern_ss_capture(SsBuf *out, int slot, char *why, size_t wn) {
+    (void)out; (void)slot;
+    if (why && wn) snprintf(why, wn, "save states are not supported on Windows yet");
+    return -1;
+}
+int kern_ss_check(SsIn in, char *why, size_t wn) {
+    (void)in;
+    if (why && wn) snprintf(why, wn, "save states are not supported on Windows yet");
+    return 0;
+}
+void kern_ss_restore(SsIn in) { (void)in; }
+void kern_ss_drop(int slot) { (void)slot; }
+

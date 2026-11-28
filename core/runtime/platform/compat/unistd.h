@@ -37,11 +37,19 @@
 #define getpid _getpid
 #endif
 
+#ifndef O_BINARY
+#ifdef _O_BINARY
+#define O_BINARY _O_BINARY
+#else
+#define O_BINARY 0x8000
+#endif
+#endif
+
 #ifndef O_CLOEXEC
 #ifdef O_NOINHERIT
-#define O_CLOEXEC O_NOINHERIT
+#define O_CLOEXEC (O_NOINHERIT | O_BINARY)
 #else
-#define O_CLOEXEC 0
+#define O_CLOEXEC O_BINARY
 #endif
 #endif
 

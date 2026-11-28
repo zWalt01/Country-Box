@@ -329,6 +329,59 @@ static int tf_movie_skip_hook(Cpu *c, void *arg) {
     return 0;
 }
 
+// CStreamedGameFile (main+0x62de24 constructor): Retro's GameFramework constructor enqueues an asynchronous file read
+// request (main+0x28828) BEFORE allocating its chunk vector (this+0x80) at main+0x62e0ac. On fast PC RomFS mapping,
+// the asynchronous file I/O thread runs the completion callback CStreamedGameFile::StaticInit (main+0x62e470)
+// immediately, while the main thread's constructor has not yet populated this+0x80. StaticInit then loops calling
+// RequestFillUnusedChunk (main+0x62dad4), which dereferences this+0x80 (mChunks), causing an access violation.
+// These hooks ensure StaticInit waits for the constructor to finish initializing this+0x80, and guards against NULL chunks.
+static int tf_streamed_file_init_hook(Cpu *c, void *arg) {
+    (void)arg;
+    uint64_t self = c->x[1];
+    if (self) {
+        int waited = 0;
+        while (!*(const volatile uint64_t *)(uintptr_t)(self + 0x80) && waited < 200) {
+            plat_sleep_ns(500000);
+            waited++;
+        }
+        uint64_t chunks = *(const volatile uint64_t *)(uintptr_t)(self + 0x80);
+        if (!chunks) {
+            rt_log("tfstream: CStreamedGameFile %#llx chunks NULL after %d ms, skipping StaticInit",
+                   (unsigned long long)self, waited / 2);
+            return 1;
+        }
+        if (waited > 0) {
+            rt_log("tfstream: CStreamedGameFile %#llx chunks ready after %d ms wait",
+                   (unsigned long long)self, waited / 2);
+        }
+    }
+    return 0;
+}
+
+static int tf_streamed_file_fill_chunk_hook(Cpu *c, void *arg) {
+    (void)arg;
+    uint64_t self = c->x[0];
+    if (self) {
+        uint64_t chunks = *(const volatile uint64_t *)(uintptr_t)(self + 0x80);
+        if (!chunks) {
+            rt_log("tfstream: CStreamedGameFile %#llx chunks NULL in RequestFillUnusedChunk, skipping",
+                   (unsigned long long)self);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int tf_streamed_file_fini_hook(Cpu *c, void *arg) {
+    (void)arg;
+    uint64_t self = c->x[0];
+    if (self) {
+        uint64_t chunks = *(const volatile uint64_t *)(uintptr_t)(self + 0x80);
+        if (!chunks) return 1;
+    }
+    return 0;
+}
+
 // CB_TF_BOT (below dktf_tools_init)
 static int tf_bot_on;
 static int tf_prethink_hook(Cpu *c, void *arg);
@@ -362,6 +415,13 @@ void dktf_tools_init(void) {
         if (!strcmp(ldr_module(k)->name, "main")) dktf_options_init(ldr_module(k)->base);
     for (int k = 0; k < ldr_count(); k++)   // MP4_ASPECT=native: the panel's shape (dktf_aspect.c)
         if (!strcmp(ldr_module(k)->name, "main")) dktf_aspect_init(ldr_module(k)->base);
+    for (int k = 0; k < ldr_count(); k++)
+        if (!strcmp(ldr_module(k)->name, "main")) {
+            uint64_t m = ldr_module(k)->base;
+            rt_entry_hook_set(m + 0x62e470, tf_streamed_file_init_hook, NULL);
+            rt_entry_hook_set(m + 0x62dad4, tf_streamed_file_fill_chunk_hook, NULL);
+            rt_entry_hook_set(m + 0x62e4c8, tf_streamed_file_fini_hook, NULL);
+        }
     // CB_LAUNCH_MODE=superguide (as for Returns HD): RProductionFlags::gAutoSuperGuide (main+0x5e505dc) set, so
     // NGameModeSetup::setup_primary_gamemode (main+0x1e6d48) builds CSuperGuideGameMode for a level that has a recording
     // (Super Kong plays it) and falls back to the normal mode otherwise.

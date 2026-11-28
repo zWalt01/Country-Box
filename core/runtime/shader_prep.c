@@ -728,6 +728,7 @@ int shader_prep_run(const ShaderPrepGame *g, ShaderPrepProgressFn progress, void
     int rc = 1;
     if (!W.w || !W.n) {
         rt_log("shader_prep: nothing to prepare (no list, nothing recorded)");
+        rc = 0;
         goto done;
     }
     if (g->source) {

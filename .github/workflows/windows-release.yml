@@ -1,0 +1,87 @@
+name: Windows Release Build
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            9.0.x
+
+      - name: Setup MSYS2 (UCRT64)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-clang
+            mingw-w64-ucrt-x86_64-lld
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-sdl3
+            mingw-w64-ucrt-x86_64-openh264
+
+      - name: Download Cisco OpenH264 DLL
+        shell: msys2 {0}
+        run: |
+          mkdir -p build/launcher
+          # Download Cisco's official prebuilt openh264 binary for H.264 video decoding
+          curl -fsSL -o build/launcher/openh264.dll.bz2 \
+            http://ciscobinary.openh264.org/openh264-2.6.0-win64.dll.bz2 || \
+          curl -fsSL -o build/launcher/openh264.dll.bz2 \
+            https://github.com/cisco/openh264/releases/download/v2.6.0/openh264-2.6.0-win64.dll.bz2
+          bunzip2 -f build/launcher/openh264.dll.bz2
+
+      - name: Build Shader Translator (mp4_xlate.exe)
+        shell: msys2 {0}
+        run: |
+          python core/tools/build_xlate.py
+
+      - name: Build Launcher (country-box-launcher.exe)
+        shell: msys2 {0}
+        run: |
+          python launcher/build.py --out build/launcher
+
+      - name: Package Windows ZIP
+        shell: msys2 {0}
+        run: |
+          # Copy MSYS2 SDL3 DLL if needed next to launcher
+          cp /ucrt64/bin/SDL3.dll build/launcher/
+          python launcher/make_windows_zip.py build
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Country-Box-windows-x86_64
+          path: build/Country-Box-windows-x86_64.zip
+
+      - name: Upload Release Assets
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/Country-Box-*-windows-x86_64.zip
+            build/Country-Box-windows-x86_64.zip
+            build/*.sha256

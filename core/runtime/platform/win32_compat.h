@@ -6,6 +6,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+#include <bcrypt.h>
 #include <io.h>
 #include <direct.h>
 #include <stdio.h>
@@ -177,7 +178,9 @@ static inline int win32_mprotect(void *addr, size_t len, int prot) {
 #endif
 
 static inline int getrandom(void *buf, size_t buflen, unsigned int flags) {
-    (void)buf; (void)buflen; (void)flags;
+    (void)flags;
+    if (BCryptGenRandom(NULL, (PUCHAR)buf, (ULONG)buflen, BCRYPT_USE_SYSTEM_PREFERRED_RNG) == 0)
+        return (int)buflen;
     return -1;
 }
 

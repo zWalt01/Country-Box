@@ -161,6 +161,9 @@ static int h264_lib(void) {
     const char *where = "";
     if (plat_exe_path(path, PATH_MAX)) {   // a copy next to the executable first (the AppImage's own)
         char *slash = strrchr(path, '/');
+#ifdef _WIN32
+        if (!slash) slash = strrchr(path, '\\');
+#endif
         if (slash) {
             snprintf(slash + 1, 64, "%s", OPENH264_LIB);
             if (plat_file_exists(path) && (h = plat_lib_open(path))) where = "next to the executable";

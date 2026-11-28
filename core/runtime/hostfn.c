@@ -16,6 +16,17 @@
 #define MAX_HOSTFN 4096   // dispatch.c holds HOST_CAP / 2 host functions
 #define MAX_ADDED 64
 
+#ifdef _WIN32
+__attribute__((used, section(".ovr$a"))) const RtHostEntry win_ovr_start_marker[1] = {{0, 0}};
+__attribute__((used, section(".ovr$z"))) const RtHostEntry win_ovr_stop_marker[1] = {{0, 0}};
+#define ovr_start (win_ovr_start_marker + 1)
+#define ovr_stop win_ovr_stop_marker
+
+__attribute__((used, section(".obs$a"))) const RtHostEntry win_obs_start_marker[1] = {{0, 0}};
+__attribute__((used, section(".obs$z"))) const RtHostEntry win_obs_stop_marker[1] = {{0, 0}};
+#define obs_start (win_obs_start_marker + 1)
+#define obs_stop win_obs_stop_marker
+#else
 // Country-Box: ELF. The entries (host.h) go to the sections rt_ovr and rt_obs, whose names are C identifiers, so the
 // linker defines __start_/__stop_ around each (the PE/COFF original sorted .ovr$a < .ovr$m < .ovr$z markers, which
 // ELF linkers do not do: no override was installed). The weak references keep a build without entries linking.
@@ -25,6 +36,7 @@ extern const RtHostEntry __start_rt_obs[] __attribute__((weak)), __stop_rt_obs[]
 #define ovr_stop __stop_rt_ovr
 #define obs_start __start_rt_obs
 #define obs_stop __stop_rt_obs
+#endif
 
 typedef struct {
     const char *name;

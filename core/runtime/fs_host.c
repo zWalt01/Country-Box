@@ -40,7 +40,14 @@
 #include <windows.h>
 #define lstat(p, st) stat(p, st)
 #define fsync(fd) _commit(fd)
-#define O_CLOEXEC O_NOINHERIT
+#ifndef O_BINARY
+#ifdef _O_BINARY
+#define O_BINARY _O_BINARY
+#else
+#define O_BINARY 0x8000
+#endif
+#endif
+#define O_CLOEXEC (O_NOINHERIT | O_BINARY)
 #define O_DIRECTORY 0
 #define host_mkdir(p) _mkdir(p)
 #define posix_fadvise(fd, off, len, adv) ((void)0)

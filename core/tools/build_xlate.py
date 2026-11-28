@@ -138,8 +138,11 @@ def main() -> None:
     if a.out:
         global BUILD
         BUILD = a.out.resolve()
+    is_win = sys.platform == "win32" or os.name == "nt"
+    bin_name = "mp4_xlate.exe" if is_win else "mp4_xlate"
+    rid = "win-x64" if is_win else "linux-x64"
     if a.id_only:
-        write_identity(BUILD / "mp4_xlate")
+        write_identity(BUILD / bin_name)
         return
     started = time.time()
     dotnet = shutil.which("dotnet")
@@ -159,13 +162,13 @@ def main() -> None:
     out = BUILD / "publish"
     shutil.rmtree(out, ignore_errors=True)
     cmd = [
-        dotnet, "publish", str(work / "mp4_xlate.csproj"), "-c", "Release", "-r", "linux-x64",
+        dotnet, "publish", str(work / "mp4_xlate.csproj"), "-c", "Release", "-r", rid,
         "-p:PublishAot=true", "-p:InvariantGlobalization=true", f"-p:RyuSrc={src}", "-o", str(out),
     ]
     if subprocess.run(cmd, env=env).returncode != 0:
         sys.exit("dotnet publish failed")
-    exe = BUILD / "mp4_xlate"
-    shutil.copy2(out / "mp4_xlate", exe)
+    exe = BUILD / bin_name
+    shutil.copy2(out / bin_name, exe)
     write_identity(exe)
     print(f"built {exe} ({exe.stat().st_size / 1e6:.1f} MB) in {time.time() - started:.0f} s")
 

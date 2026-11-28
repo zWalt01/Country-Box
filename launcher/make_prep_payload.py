@@ -56,7 +56,16 @@ def main():
     a = ap.parse_args()
     out = a.out.resolve()
     xlate = a.xlate.resolve()
-    for f in (xlate / 'mp4_xlate', xlate / 'mp4_xlate.id'):
+    if not (xlate / 'mp4_xlate').is_file() and not (xlate / 'mp4_xlate.exe').is_file():
+        for alt in (ROOT / 'build' / 'xlate', ROOT / 'toolchain' / 'deps-mingw' / 'bin'):
+            if (alt / 'mp4_xlate.exe').is_file() or (alt / 'fe3h_xlate.exe').is_file():
+                xlate = alt
+                break
+    xlate_bin = 'mp4_xlate.exe' if (xlate / 'mp4_xlate.exe').is_file() else \
+                'fe3h_xlate.exe' if (xlate / 'fe3h_xlate.exe').is_file() else 'mp4_xlate'
+    xlate_id = 'mp4_xlate.id' if (xlate / 'mp4_xlate.id').is_file() else \
+               'fe3h_xlate.id' if (xlate / 'fe3h_xlate.id').is_file() else 'mp4_xlate.id'
+    for f in (xlate / xlate_bin, xlate / xlate_id):
         if not f.is_file():
             sys.exit(f'{f} is missing (build it with core/tools/build_xlate.py)')
     out.mkdir(parents=True, exist_ok=True)
@@ -70,9 +79,12 @@ def main():
     copy_tree(ROOT / 'games', out / 'games')
     # the prebuilt translator (NativeAOT: needs no .NET at the player's machine) and its identity
     (out / 'build' / 'xlate').mkdir(parents=True, exist_ok=True)
-    for name in ('mp4_xlate', 'mp4_xlate.id'):
-        shutil.copy2(xlate / name, out / 'build' / 'xlate' / name)
-        (out / 'build' / 'xlate' / name).chmod(0o755 if name == 'mp4_xlate' else 0o644)
+    dst_bin = 'mp4_xlate.exe' if xlate_bin.endswith('.exe') else 'mp4_xlate'
+    shutil.copy2(xlate / xlate_bin, out / 'build' / 'xlate' / dst_bin)
+    (out / 'build' / 'xlate' / dst_bin).chmod(0o755)
+    if (xlate / xlate_id).is_file():
+        shutil.copy2(xlate / xlate_id, out / 'build' / 'xlate' / 'mp4_xlate.id')
+        (out / 'build' / 'xlate' / 'mp4_xlate.id').chmod(0o644)
     shutil.copy2(ROOT / 'VERSION', out / 'VERSION')
     # requirements.txt: only what Prepare's Python needs (the lifter), pinned; the hint names the exact commands
     (out / 'requirements.txt').write_text('capstone==5.0.9\nnumpy==2.5.4\nunicorn==2.1.4\n')

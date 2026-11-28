@@ -131,9 +131,15 @@ static int open_read(const char *path) { return open(path, O_RDONLY | O_CLOEXEC)
 static Identity identity_of(int f) {
     struct stat st;
     need(fstat(f, &st) == 0, "file information");
+#ifdef _WIN32
+    return (Identity){(uint32_t)st.st_dev, 0, (uint64_t)st.st_ino, (uint64_t)st.st_size,
+                      (uint64_t)st.st_mtime * 1000000000ull,
+                      (uint64_t)st.st_ctime * 1000000000ull};
+#else
     return (Identity){(uint32_t)(st.st_dev ^ (st.st_dev >> 32)), 0, st.st_ino, (uint64_t)st.st_size,
                       (uint64_t)st.st_mtim.tv_sec * 1000000000ull + (uint64_t)st.st_mtim.tv_nsec,
                       (uint64_t)st.st_ctim.tv_sec * 1000000000ull + (uint64_t)st.st_ctim.tv_nsec};
+#endif
 }
 
 // ---- SHA-256 over a file range (rt_sha256_*, streaming)
@@ -512,6 +518,9 @@ static void index_path(char *out, size_t cap) {
     }
     need(plat_exe_path(out, cap), "executable path");
     char *slash = strrchr(out, '/');
+#ifdef _WIN32
+    if (!slash) slash = strrchr(out, '\\');
+#endif
     need(slash && (size_t)(slash + 1 - out) + 16 < cap, "executable path");
     strcpy(slash + 1, "romfs-index.bin");
 }
@@ -521,6 +530,9 @@ static void load_index(void) {
     index_path(path, sizeof path);
     snprintf(index_dir, sizeof index_dir, "%s", path);
     char *sep = strrchr(index_dir, '/');
+#ifdef _WIN32
+    if (!sep) sep = strrchr(index_dir, '\\');
+#endif
     if (sep) *sep = 0;
     else strcpy(index_dir, ".");
     if (!plat_file_exists(path))

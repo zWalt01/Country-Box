@@ -23,6 +23,7 @@
 // rt_ticks, the function profiler hook), logging, SHA-256, and the crash reporter (a SIGSEGV/SIGBUS/SIGILL/SIGFPE
 // handler on an alternate stack that names the lifted function, the guest registers and the guest frame-pointer chain).
 #define _GNU_SOURCE
+#include <fcntl.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -438,6 +439,9 @@ static void portable_paths(RtConfig *c) {
 }
 
 int main(int argc, char **argv) {
+#ifdef _WIN32
+    _set_fmode(_O_BINARY);
+#endif
     // Country-Box: the launcher's settings commands (settings.c) touch only the settings file: no guest memory, no log
     for (int i = 1; i < argc; i++)
         if (!strcmp(argv[i], "--settings-dump") || !strcmp(argv[i], "--settings-set")) return settings_cli(argc, argv);

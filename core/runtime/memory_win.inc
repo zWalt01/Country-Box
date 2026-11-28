@@ -45,6 +45,7 @@ enum { ATTR_PERMISSION_LOCKED = 16 };
 #define R_INVALID_NEW_PERM 0xd801u
 #define R_INVALID_STATE 0xd401u     // InvalidCurrentMemory
 #define R_INVALID_REGION 0xdc01u
+#define R_OUT_OF_MEMORY 0xd001u
 #define R_LIMIT_REACHED 0x10801u
 
 static RtGuestLayout L;
@@ -411,15 +412,18 @@ int mem_is_shadow(uint64_t addr, uint64_t size) {
 
 // ---- 0x01 SetHeapSize
 uint32_t mem_set_heap_size(uint64_t size, uint64_t *addr) {
+    if (size % 0x200000) return R_INVALID_SIZE;
     AcquireSRWLockExclusive(&lock);
-    if (size > HEAP_CAP || size % 0x200000 || size + image_bytes() > L.pool) {
+    if (size > HEAP_CAP || size + image_bytes() > L.pool) {
         ReleaseSRWLockExclusive(&lock);
-        return R_INVALID_STATE;
+        return R_OUT_OF_MEMORY;
     }
     if (size > heap_size) commit(L.heap.base + heap_size, size - heap_size, "heap");
     if (size < heap_size) decommit(L.heap.base + size, heap_size - size, "heap");
     heap_size = size;
     ReleaseSRWLockExclusive(&lock);
+    rt_log("memory: heap %#llx+%#llx (pool %#llx, images %#llx)", (unsigned long long)L.heap.base, (unsigned long long)size,
+           (unsigned long long)L.pool, (unsigned long long)image_bytes());
     if (addr) *addr = L.heap.base;
     return R_OK;
 }
@@ -688,9 +692,14 @@ uint32_t mem_query(uint64_t a, RtMemoryInfo *out) {
     } else if (a - L.hostfn.base < L.hostfn.size) {
         r = (RtMemoryInfo){.base = L.hostfn.base, .size = L.hostfn.size, .state = ST_INACCESSIBLE};
     } else {
+        // Country-Box: a region no known one covers (host memory, or a gap between modules of the fixed window) is
+        // inaccessible, not Code RX as upstream reported it. The SDK's exception unwinder (nn::ro::detail::
+        // GetExceptionInfo) finds a module by walking Code RX regions back and forth from the throwing pc, and at the
+        // first C++ throw of Returns HD it walked from main's text into such a gap and read a MOD0 header there.
+        // Inaccessible is still never picked by a mapping search.
         taken_gap(a, &r.base, &r.size);
-        r.state = ST_CODE;
-        r.perm = PERM_RX;
+        r.state = ST_INACCESSIBLE;
+        r.perm = PERM_NONE;
     }
     // Moved stacks: the destination is Stack, the source Normal without access; free and normal regions around them
     // are clipped (MNG services.c).

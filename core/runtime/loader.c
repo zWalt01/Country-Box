@@ -70,8 +70,16 @@ const RtLoaded *ldr_module(int i) { return i >= 0 && i < nmods ? &mods[i].pub : 
 static uint32_t rd32(uint64_t a) { return LD32(a); }
 
 // ---- files
+#ifndef O_BINARY
+#ifdef _O_BINARY
+#define O_BINARY _O_BINARY
+#else
+#define O_BINARY 0
+#endif
+#endif
+
 static uint8_t *read_file(const char *path, size_t *len) {
-    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    int fd = open(path, O_RDONLY | O_CLOEXEC | O_BINARY);
     if (fd < 0) return NULL;
     struct stat st;
     uint8_t *p = NULL;

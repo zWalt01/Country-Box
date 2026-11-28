@@ -664,4 +664,8 @@ void perf_present(uint64_t frame) {
     win_start = now;
 }
 
+void prof_toggle(void) {
+    // Windows stub: key sampling toggle
+}
+
 #endif

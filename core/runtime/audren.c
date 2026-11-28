@@ -402,8 +402,13 @@ static void advance_voice(AudioRenderer *r, ServerVoice *v, double out_seconds) 
 // absolute deadline (kern_now_ns is CLOCK_MONOTONIC) with a 1 us timer slack, no spinning; the thread keeps the normal
 // priority, which an unprivileged process (the Steam Deck's) cannot raise.
 static void wait_until(uint64_t due) {
+#ifdef _WIN32
+    uint64_t now = kern_now_ns();
+    if (due > now) plat_sleep_ns(due - now);
+#else
     struct timespec ts = {(time_t)(due / 1000000000ull), (long)(due % 1000000000ull)};
     while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, NULL) == EINTR) {}
+#endif
 }
 
 static void render_thread(void *p) {
